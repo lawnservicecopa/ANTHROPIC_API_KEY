@@ -1,0 +1,624 @@
+<title>Za Grind</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --void: #0B0F1A;
+    --smoke: #141B2D;
+    --haze: #1C2638;
+    --border: #243044;
+    --ash: #64748B;
+    --cloud: #E2E8F0;
+    --cloud-dim: #94A3B8;
+    --kush: #22C55E;
+    --kush-dim: rgba(34,197,94,0.12);
+    --kush-glow: rgba(34,197,94,0.25);
+    --purp: #A855F7;
+    --purp-dim: rgba(168,85,247,0.12);
+    --purp-glow: rgba(168,85,247,0.25);
+    --cherry: #F43F5E;
+    --cherry-dim: rgba(244,63,94,0.12);
+    --cherry-glow: rgba(244,63,94,0.25);
+    --gold: #FBBF24;
+    --gold-dim: rgba(251,191,36,0.12);
+    --gold-glow: rgba(251,191,36,0.35);
+    --display: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+    --body: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    margin: 0;
+    padding-inline: 16px;
+    background: var(--void);
+    color: var(--cloud);
+    font-family: var(--body);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  #app {
+    max-width: 420px;
+    margin: 0 auto;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* === STATUS BAR === */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0 6px;
+    flex-shrink: 0;
+  }
+  .rank-badge {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--display); font-weight: 700; font-size: 15px;
+    letter-spacing: 0.02em;
+  }
+  .rank-badge .icon { font-size: 22px; }
+  .clouds-display {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+  .clouds-display .amount {
+    font-family: var(--display); font-weight: 700; font-size: 20px;
+    color: var(--gold);
+    text-shadow: 0 0 12px var(--gold-glow);
+  }
+  .clouds-display .label {
+    font-size: 11px; color: var(--ash);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+
+  /* === PROGRESS BAR === */
+  .progress-wrap {
+    flex-shrink: 0;
+    padding-block: 6px 2px;
+  }
+  .progress-track {
+    height: 6px; border-radius: 3px;
+    background: var(--haze);
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--kush), var(--gold));
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+  .progress-label {
+    display: block;
+    font-size: 11px; color: var(--ash);
+    margin-top: 4px; text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* === CLICK ZONE === */
+  .click-zone {
+    flex-shrink: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 20px 0 12px;
+    position: relative;
+    user-select: none;
+  }
+  .orb-wrap {
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .orb {
+    width: 150px; height: 150px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    background: radial-gradient(circle at 38% 38%, #34d399, #22c55e 50%, #15803d);
+    box-shadow: 0 0 50px var(--kush-glow), 0 0 100px rgba(34,197,94,0.08), inset 0 0 30px rgba(255,255,255,0.05);
+    transition: transform 0.08s, box-shadow 0.08s;
+    animation: breathe 4s ease-in-out infinite;
+    position: relative;
+    z-index: 1;
+  }
+  .orb:active, .orb.clicked {
+    transform: scale(0.91);
+    box-shadow: 0 0 70px var(--kush-glow), 0 0 120px rgba(34,197,94,0.15), inset 0 0 40px rgba(255,255,255,0.1);
+  }
+  .orb-emoji { font-size: 60px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); pointer-events: none; }
+  .orb-ring {
+    position: absolute; inset: -12px;
+    border-radius: 50%;
+    border: 1px solid rgba(34,197,94,0.15);
+    animation: breathe 4s ease-in-out infinite reverse;
+    pointer-events: none;
+  }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+
+  .click-stats {
+    margin-top: 12px;
+    font-size: 13px; color: var(--ash);
+    font-variant-numeric: tabular-nums;
+    display: flex; gap: 12px;
+  }
+  .click-stats span { white-space: nowrap; }
+  .stat-val { color: var(--cloud-dim); font-weight: 500; }
+  .flavor {
+    margin-top: 6px;
+    font-size: 12px; color: var(--ash);
+    font-style: italic; opacity: 0.7;
+    text-align: center;
+    min-height: 1.4em;
+  }
+
+  /* === FLOATERS === */
+  .floater {
+    position: absolute;
+    color: var(--gold);
+    font-family: var(--display);
+    font-weight: 700; font-size: 17px;
+    pointer-events: none;
+    animation: float-up 0.75s ease-out forwards;
+    text-shadow: 0 0 10px var(--gold-glow);
+    z-index: 10;
+    white-space: nowrap;
+  }
+  @keyframes float-up {
+    0% { transform: translateY(0) scale(1); opacity: 1; }
+    100% { transform: translateY(-55px) scale(0.8); opacity: 0; }
+  }
+
+  /* === TABS === */
+  .tabs {
+    display: flex; gap: 2px;
+    flex-shrink: 0;
+    background: var(--smoke);
+    border-radius: 10px;
+    padding: 3px;
+    margin-bottom: 8px;
+  }
+  .tab {
+    flex: 1;
+    padding: 8px 4px;
+    border: none; border-radius: 8px;
+    background: transparent;
+    color: var(--ash);
+    font-family: var(--display);
+    font-weight: 600; font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+    white-space: nowrap;
+    position: relative;
+  }
+  .tab:hover { color: var(--cloud-dim); }
+  .tab.active[data-track="flower"] { background: var(--kush-dim); color: var(--kush); }
+  .tab.active[data-track="pen"] { background: var(--purp-dim); color: var(--purp); }
+  .tab.active[data-track="nic"] { background: var(--cherry-dim); color: var(--cherry); }
+  .tab.locked { opacity: 0.4; cursor: default; }
+  .tab .lock { font-size: 11px; }
+
+  /* === SHOP === */
+  .shop-wrap {
+    flex: 1 1 0;
+    overflow-y: auto;
+    padding-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--haze) transparent;
+  }
+  .shop-wrap::-webkit-scrollbar { width: 4px; }
+  .shop-wrap::-webkit-scrollbar-thumb { background: var(--haze); border-radius: 2px; }
+  .shop-wrap::-webkit-scrollbar-track { background: transparent; }
+
+  .locked-msg {
+    text-align: center; padding: 40px 20px;
+    color: var(--ash);
+  }
+  .locked-msg .lock-icon { font-size: 36px; margin-bottom: 12px; }
+  .locked-msg .lock-text { font-size: 13px; line-height: 1.5; }
+  .locked-msg .lock-req {
+    font-family: var(--display); font-weight: 600;
+    margin-top: 8px; font-size: 14px;
+  }
+
+  .producer {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: var(--smoke);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .producer.can-afford { border-color: var(--track-accent); }
+  .producer.just-bought { background: var(--track-dim); }
+  .producer .p-icon { font-size: 26px; width: 36px; text-align: center; flex-shrink: 0; }
+  .producer .p-info { flex: 1; min-width: 0; }
+  .producer .p-name {
+    font-family: var(--display); font-weight: 600; font-size: 13px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .producer .p-count {
+    font-size: 12px; color: var(--ash); font-weight: 400;
+    font-variant-numeric: tabular-nums;
+  }
+  .producer .p-desc { font-size: 11px; color: var(--ash); margin-top: 1px; }
+  .producer .p-rate {
+    font-size: 11px; color: var(--track-accent);
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+  .buy-btn {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--haze);
+    color: var(--ash);
+    font-family: var(--display);
+    font-weight: 600; font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .can-afford .buy-btn {
+    background: var(--track-accent);
+    color: var(--void);
+    border-color: var(--track-accent);
+  }
+  .can-afford .buy-btn:active { transform: scale(0.94); }
+
+  /* === WELCOME BACK === */
+  .overlay { position: fixed; inset: 0; background: rgba(11,15,26,0.85); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .wb-card {
+    background: var(--smoke); border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px; text-align: center;
+    max-width: 300px; width: 90%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .wb-card .wb-icon { font-size: 48px; margin-bottom: 12px; }
+  .wb-card h2 { font-family: var(--display); font-size: 20px; margin: 0 0 8px; }
+  .wb-card p { color: var(--ash); font-size: 14px; margin: 0 0 20px; line-height: 1.5; }
+  .wb-card .wb-amount { color: var(--gold); font-family: var(--display); font-weight: 700; }
+  .wb-btn {
+    padding: 10px 28px;
+    background: var(--kush); color: var(--void);
+    border: none; border-radius: 10px;
+    font-family: var(--display); font-weight: 700; font-size: 14px;
+    cursor: pointer; transition: transform 0.1s;
+  }
+  .wb-btn:active { transform: scale(0.95); }
+
+  /* Track-specific accent */
+  [data-active-track="flower"] { --track-accent: var(--kush); --track-dim: var(--kush-dim); }
+  [data-active-track="pen"] { --track-accent: var(--purp); --track-dim: var(--purp-dim); }
+  [data-active-track="nic"] { --track-accent: var(--cherry); --track-dim: var(--cherry-dim); }
+
+  @media (max-width: 380px) {
+    .orb { width: 120px; height: 120px; }
+    .orb-emoji { font-size: 48px; }
+    .orb-ring { inset: -8px; }
+    .click-zone { padding: 14px 0 8px; }
+    .tab { font-size: 12px; padding: 7px 2px; }
+  }
+  @media (min-height: 750px) {
+    .click-zone { padding: 28px 0 16px; }
+  }
+</style>
+
+<div id="app" data-active-track="flower">
+  <header>
+    <div class="rank-badge">
+      <span class="icon" id="r-icon">🌱</span>
+      <span id="r-name">Seed</span>
+    </div>
+    <div class="clouds-display">
+      <div class="amount" id="c-amount">0</div>
+      <div class="label">clouds</div>
+    </div>
+  </header>
+
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="p-fill"></div></div>
+    <span class="progress-label" id="p-label">Next: 🌿 Nug (100)</span>
+  </div>
+
+  <div class="click-zone" id="click-zone">
+    <div class="orb-wrap">
+      <div class="orb-ring"></div>
+      <div class="orb" id="orb" role="button" aria-label="Click to earn clouds" tabindex="0">
+        <span class="orb-emoji" id="orb-emoji">🌱</span>
+      </div>
+    </div>
+    <div class="click-stats">
+      <span><span class="stat-val" id="s-click">+1</span>/click</span>
+      <span><span class="stat-val" id="s-sec">0</span>/sec</span>
+    </div>
+    <div class="flavor" id="flavor">Plant the seed. Start the grind.</div>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab active" data-track="flower">🌿 Flower</button>
+    <button class="tab locked" data-track="pen">💨 Pens <span class="lock">🔒</span></button>
+    <button class="tab locked" data-track="nic">🔋 Nic <span class="lock">🔒</span></button>
+  </nav>
+
+  <div class="shop-wrap" id="shop"></div>
+</div>
+
+<div class="overlay" id="welcome" hidden>
+  <div class="wb-card">
+    <div class="wb-icon">💨</div>
+    <h2>Welcome back</h2>
+    <p>You earned <span class="wb-amount" id="wb-amount">0</span> clouds while you were gone</p>
+    <button class="wb-btn" id="wb-ok">Let's grind</button>
+  </div>
+</div>
+
+<script>
+const RANKS = [
+  { name: 'Seed',    icon: '🌱', at: 0,         flavor: 'Plant the seed. Start the grind.' },
+  { name: 'Nug',     icon: '🌿', at: 100,       flavor: 'Got a lil something. Keep stacking.' },
+  { name: 'Dime',    icon: '💰', at: 1e3,       flavor: 'Bag secured. Moving weight.' },
+  { name: 'Gram',    icon: '🍃', at: 5e3,       flavor: 'Now we\'re talking. Full g energy.' },
+  { name: 'Eighth',  icon: '🌲', at: 25e3,      flavor: 'Proper weight. Eighth of gas.' },
+  { name: 'Quarter', icon: '⚖️', at: 100e3,     flavor: 'Quarter pack. Certified plugged in.' },
+  { name: 'Half O',  icon: '🏔️', at: 500e3,     flavor: 'Heavy hitter. Half zip loaded.' },
+  { name: 'Zip',     icon: '👑', at: 2e6,       flavor: 'Full pack. Running the block.' },
+  { name: 'QP',      icon: '💎', at: 10e6,      flavor: 'Supplier status. QP on deck.' },
+  { name: 'Elbow',   icon: '🔥', at: 50e6,      flavor: 'Legendary. A whole elbow.' },
+];
+
+const PRODUCERS = [
+  // Flower
+  { id:'nug',     name:'Nug',         track:'flower', icon:'🌿', cost:15,       rate:0.2,   desc:'A little nugget of gas' },
+  { id:'dime',    name:'Dime Bag',    track:'flower', icon:'💰', cost:100,      rate:1,     desc:'Half a g in the baggy' },
+  { id:'gram',    name:'Gram',        track:'flower', icon:'🍃', cost:500,      rate:5,     desc:'A full g of pressure' },
+  { id:'eighth',  name:'Eighth',      track:'flower', icon:'🌲', cost:3e3,     rate:25,    desc:'3.5g of top shelf' },
+  { id:'quarter', name:'Quarter',     track:'flower', icon:'⚖️', cost:15e3,    rate:100,   desc:'7g heavy hitter' },
+  { id:'half',    name:'Half Zip',    track:'flower', icon:'🏔️', cost:75e3,    rate:400,   desc:'14g of exotic' },
+  { id:'zip',     name:'Zip',         track:'flower', icon:'👑', cost:400e3,   rate:1800,  desc:'28g full pack' },
+  // Pens
+  { id:'halfcart',name:'Half G Cart', track:'pen',    icon:'🔋', cost:50e3,    rate:200,   desc:'Starter cart, smooth hits' },
+  { id:'fullcart',name:'Full G Cart', track:'pen',    icon:'💨', cost:200e3,   rate:800,   desc:'Full gram of oil' },
+  { id:'liveres', name:'Live Resin',  track:'pen',    icon:'🍯', cost:1e6,     rate:3500,  desc:'Premium terp extract' },
+  { id:'diamond', name:'Diamond Cart',track:'pen',    icon:'💎', cost:5e6,     rate:15e3,  desc:'Top tier sauce' },
+  { id:'dispo',   name:'Dispo Pen',   track:'pen',    icon:'🖊️', cost:25e6,    rate:60e3,  desc:'All-in-one disposable heat' },
+  // Nic
+  { id:'elfbar',  name:'Elf Bar',     track:'nic',    icon:'🫧', cost:80e3,    rate:350,   desc:'5000 puffs of clouds' },
+  { id:'lost',    name:'Lost Mary',   track:'nic',    icon:'🌀', cost:400e3,   rate:1800,  desc:'Smooth flavor clouds' },
+  { id:'geek',    name:'Geek Bar',    track:'nic',    icon:'⚡', cost:2e6,     rate:7e3,   desc:'Mega puff beast mode' },
+  { id:'flum',    name:'Flum Float',  track:'nic',    icon:'☁️', cost:10e6,    rate:30e3,  desc:'The cloud machine' },
+  { id:'hyde',    name:'Hyde Edge',   track:'nic',    icon:'🔥', cost:50e6,    rate:130e3, desc:'Final boss energy' },
+];
+
+const TRACK_UNLOCK = { flower: 0, pen: 25e3, nic: 5e3 };
+const TRACK_LABELS = { flower:'Flower', pen:'Pens', nic:'Nic' };
+const COST_MULT = 1.15;
+const SAVE_KEY = 'za_grind_v1';
+
+let state = { clouds:0, total:0, prods:{}, tab:'flower', lastTick:Date.now() };
+let prevRankIdx = 0;
+
+// --- Utility ---
+function fmt(n) {
+  if (n < 0) return '-' + fmt(-n);
+  if (n >= 1e12) return (n/1e12).toFixed(1)+'T';
+  if (n >= 1e9)  return (n/1e9).toFixed(1)+'B';
+  if (n >= 1e6)  return (n/1e6).toFixed(1)+'M';
+  if (n >= 1e3)  return (n/1e3).toFixed(1)+'K';
+  if (n < 10 && n % 1 !== 0) return n.toFixed(1);
+  return Math.floor(n).toLocaleString();
+}
+function prodCost(p) { return Math.floor(p.cost * Math.pow(COST_MULT, state.prods[p.id]||0)); }
+function totalOwned() { let s=0; for(const k in state.prods) s+=state.prods[k]; return s; }
+function clickPow() { return 1 + Math.floor(totalOwned()/8); }
+function cps() { let s=0; for(const p of PRODUCERS) s += p.rate*(state.prods[p.id]||0); return s; }
+function rankIdx() { let i=0; for(let r=0;r<RANKS.length;r++) if(state.total>=RANKS[r].at) i=r; return i; }
+function rankProgress() {
+  const i=rankIdx(), cur=RANKS[i], nxt=RANKS[i+1];
+  if(!nxt) return 1;
+  return Math.min((state.total-cur.at)/(nxt.at-cur.at),1);
+}
+function trackUnlocked(t) { return state.total >= TRACK_UNLOCK[t]; }
+
+// --- DOM refs ---
+const $ = id => document.getElementById(id);
+const orbEl=$('orb'), shopEl=$('shop'), clickZone=$('click-zone');
+
+// --- Save/Load ---
+function save() {
+  state.lastTick = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){}
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if(d && typeof d.clouds==='number') {
+      state = { clouds:d.clouds, total:d.total||0, prods:d.prods||{}, tab:d.tab||'flower', lastTick:d.lastTick||Date.now() };
+      return true;
+    }
+  } catch(e){}
+  return false;
+}
+
+// --- Render ---
+function renderStatus() {
+  const i=rankIdx(), r=RANKS[i];
+  $('r-icon').textContent = r.icon;
+  $('r-name').textContent = r.name;
+  $('c-amount').textContent = fmt(state.clouds);
+  $('orb-emoji').textContent = r.icon;
+  $('s-click').textContent = '+'+fmt(clickPow());
+  $('s-sec').textContent = fmt(cps());
+  const prog = rankProgress();
+  $('p-fill').style.width = (prog*100)+'%';
+  const nxt = RANKS[i+1];
+  $('p-label').textContent = nxt ? `Next: ${nxt.icon} ${nxt.name} (${fmt(nxt.at)})` : '✦ MAX RANK';
+  if(i !== prevRankIdx) {
+    $('flavor').textContent = r.flavor;
+    prevRankIdx = i;
+  }
+}
+function renderTabs() {
+  const btns = document.querySelectorAll('.tab');
+  btns.forEach(b => {
+    const t = b.dataset.track;
+    const unlocked = trackUnlocked(t);
+    b.classList.toggle('active', t===state.tab);
+    b.classList.toggle('locked', !unlocked);
+    const lock = b.querySelector('.lock');
+    if(lock) lock.hidden = unlocked;
+  });
+}
+function renderShop() {
+  const app = $('app');
+  app.dataset.activeTrack = state.tab;
+
+  if(!trackUnlocked(state.tab)) {
+    const req = TRACK_UNLOCK[state.tab];
+    const rk = RANKS.find(r => r.at === req) || { icon:'?', name:'???' };
+    shopEl.innerHTML = `<div class="locked-msg">
+      <div class="lock-icon">🔒</div>
+      <div class="lock-text">Reach <strong>${rk.icon} ${rk.name}</strong> rank to unlock</div>
+      <div class="lock-req">${fmt(req)} total clouds needed</div>
+    </div>`;
+    return;
+  }
+  const items = PRODUCERS.filter(p => p.track===state.tab);
+  shopEl.innerHTML = items.map(p => {
+    const owned = state.prods[p.id]||0;
+    const cost = prodCost(p);
+    const afford = state.clouds >= cost;
+    return `<div class="producer ${afford?'can-afford':''}" data-id="${p.id}">
+      <span class="p-icon">${p.icon}</span>
+      <div class="p-info">
+        <div class="p-name">${p.name} ${owned?`<span class="p-count">×${owned}</span>`:''}</div>
+        <div class="p-desc">${p.desc}</div>
+        <div class="p-rate">+${fmt(p.rate)}/sec each</div>
+      </div>
+      <button class="buy-btn" data-id="${p.id}">${fmt(cost)} ☁️</button>
+    </div>`;
+  }).join('');
+}
+function updateAffordability() {
+  shopEl.querySelectorAll('.producer').forEach(el => {
+    const p = PRODUCERS.find(x=>x.id===el.dataset.id);
+    if(!p) return;
+    const cost = prodCost(p);
+    const afford = state.clouds >= cost;
+    el.classList.toggle('can-afford', afford);
+    const btn = el.querySelector('.buy-btn');
+    if(btn) btn.textContent = fmt(cost)+' ☁️';
+    const cnt = el.querySelector('.p-count');
+    const owned = state.prods[p.id]||0;
+    if(cnt) cnt.textContent = owned ? '×'+owned : '';
+  });
+}
+
+// --- Actions ---
+function handleClick(e) {
+  const pow = clickPow();
+  state.clouds += pow;
+  state.total += pow;
+  // Floater
+  const rect = orbEl.getBoundingClientRect();
+  const zoneRect = clickZone.getBoundingClientRect();
+  const cx = (e.clientX||rect.left+rect.width/2) - zoneRect.left;
+  const cy = (e.clientY||rect.top) - zoneRect.top - 10;
+  const span = document.createElement('span');
+  span.className = 'floater';
+  span.textContent = '+'+fmt(pow);
+  span.style.left = cx+'px';
+  span.style.top = cy+'px';
+  clickZone.appendChild(span);
+  span.addEventListener('animationend', ()=>span.remove());
+  renderStatus();
+}
+function handleBuy(id) {
+  const p = PRODUCERS.find(x=>x.id===id);
+  if(!p) return;
+  const cost = prodCost(p);
+  if(state.clouds < cost) return;
+  state.clouds -= cost;
+  state.prods[p.id] = (state.prods[p.id]||0) + 1;
+  save();
+  renderShop();
+  renderStatus();
+}
+
+// --- Events ---
+orbEl.addEventListener('click', handleClick);
+orbEl.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); handleClick(e); }});
+shopEl.addEventListener('click', e => {
+  const btn = e.target.closest('.buy-btn');
+  if(btn) handleBuy(btn.dataset.id);
+});
+$('tabs').addEventListener('click', e => {
+  const tab = e.target.closest('.tab');
+  if(!tab || tab.classList.contains('locked')) return;
+  state.tab = tab.dataset.track;
+  renderTabs();
+  renderShop();
+});
+$('wb-ok').addEventListener('click', () => { $('welcome').hidden = true; });
+
+// --- Game Loop ---
+let tickCount = 0;
+function tick() {
+  const now = Date.now();
+  const dt = Math.min(now - state.lastTick, 200) / 1000;
+  state.lastTick = now;
+  const earned = cps() * dt;
+  if(earned > 0) {
+    state.clouds += earned;
+    state.total += earned;
+  }
+  renderStatus();
+  tickCount++;
+  if(tickCount % 5 === 0) updateAffordability();
+  if(tickCount % 200 === 0) save();
+  // Check tab unlock changes
+  if(tickCount % 10 === 0) renderTabs();
+}
+
+// --- Init ---
+function init(hotData) {
+  if(hotData && hotData.clouds !== undefined) {
+    state = hotData;
+  } else {
+    const hadSave = load();
+    if(hadSave) {
+      const elapsed = (Date.now() - (state.lastTick||Date.now())) / 1000;
+      const offlineEarnings = Math.floor(cps() * Math.min(elapsed, 8*3600) * 0.5);
+      if(offlineEarnings > 10) {
+        state.clouds += offlineEarnings;
+        state.total += offlineEarnings;
+        $('wb-amount').textContent = fmt(offlineEarnings);
+        $('welcome').hidden = false;
+      }
+    }
+  }
+  state.lastTick = Date.now();
+  prevRankIdx = rankIdx();
+  $('flavor').textContent = RANKS[prevRankIdx].flavor;
+  renderStatus();
+  renderTabs();
+  renderShop();
+  setInterval(tick, 50);
+}
+
+// Hot reload support
+if(window.claude?.hot?.snapshot) {
+  setInterval(() => window.claude.hot.snapshot({...state}), 3000);
+}
+const startFn = d => init(d);
+window.claude?.hot?.ready ? window.claude.hot.ready(startFn) : startFn(window.claude?.hot?.data ?? null);
+</script>
