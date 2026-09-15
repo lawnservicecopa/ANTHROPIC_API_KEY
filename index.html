@@ -1,0 +1,898 @@
+<title>Za Grind</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap">
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { background: #080c14; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: calc(env(safe-area-inset-top,0px) + 8px) 14px 0;
+    pointer-events: none; z-index: 10;
+    font-family: 'Chakra Petch','Segoe UI',system-ui,sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .hud-row { display: flex; justify-content: space-between; align-items: center; }
+  .hud-rank { font-weight: 700; font-size: 15px; color: #e2e8f0; text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
+  .hud-clouds { font-weight: 700; font-size: 18px; color: #fbbf24; text-shadow: 0 0 12px rgba(251,191,36,0.4); font-variant-numeric: tabular-nums; }
+  .hud-bar-wrap {
+    margin-top: 6px; height: 5px; border-radius: 3px;
+    background: rgba(255,255,255,0.08); overflow: hidden;
+  }
+  .hud-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#22c55e,#fbbf24); transition: width 0.3s; width: 0%; }
+  .hud-next { font-size: 11px; color: #64748b; margin-top: 3px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hud-next-preview {
+    display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+    margin-top: 4px;
+  }
+  .hud-next-icon { font-size: 22px; filter: grayscale(0.4) brightness(0.8); animation: next-glow 2s ease-in-out infinite alternate; }
+  @keyframes next-glow { from{filter:grayscale(0.4) brightness(0.8)} to{filter:grayscale(0.1) brightness(1.1)} }
+  .hud-next-info { text-align: right; }
+  .hud-next-name { font-size: 12px; color: #cbd5e1; font-weight: 600; }
+  .hud-next-need { font-size: 10px; color: #475569; font-variant-numeric: tabular-nums; }
+  .hud-zone {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-family: 'Chakra Petch',sans-serif; font-weight: 700; font-size: 28px;
+    pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.4s;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.8); letter-spacing: 0.04em;
+  }
+  .hud-zone.show { opacity: 1; }
+
+  .hud-hint {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom,0px) + 14px); left: 50%; transform: translateX(-50%);
+    font-family: 'DM Sans',sans-serif; font-size: 12px; color: #64748b;
+    pointer-events: none; z-index: 10; text-align: center; white-space: nowrap;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    transition: opacity 1s; opacity: 1;
+  }
+  .hud-hint.hidden { opacity: 0; }
+
+  /* Power-up bar */
+  .hud-buffs {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom,0px) + 36px); left: 14px;
+    display: flex; gap: 6px; pointer-events: none; z-index: 10;
+    font-family: 'Chakra Petch',sans-serif;
+  }
+  .buff-pill {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(0,0,0,0.6); border-radius: 12px;
+    padding: 3px 10px 3px 6px; font-size: 12px; font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .buff-pill .bp-icon { font-size: 16px; }
+  .buff-pill .bp-time { color: #fbbf24; font-variant-numeric: tabular-nums; }
+
+  /* Evolution overlay */
+  .evo-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(8,12,20,0.7);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
+  }
+  .evo-overlay.show { opacity: 1; pointer-events: auto; }
+  .evo-card {
+    text-align: center; padding: 32px;
+    font-family: 'Chakra Petch',sans-serif;
+  }
+  .evo-icon { font-size: 72px; animation: evo-pulse 0.6s ease-in-out infinite alternate; }
+  @keyframes evo-pulse { from{transform:scale(1)} to{transform:scale(1.15)} }
+  .evo-label { font-size: 13px; color: #fbbf24; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 12px; }
+  .evo-name { font-size: 28px; font-weight: 700; color: #e2e8f0; margin-top: 4px; text-shadow: 0 0 20px rgba(251,191,36,0.3); }
+  .evo-flavor { font-family: 'DM Sans',sans-serif; font-size: 13px; color: #94a3b8; margin-top: 8px; font-style: italic; }
+</style>
+
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="hud-row">
+    <div class="hud-rank" id="h-rank">🌱 Seed</div>
+    <div class="hud-clouds" id="h-clouds">0 ☁️</div>
+  </div>
+  <div class="hud-bar-wrap"><div class="hud-bar" id="h-bar"></div></div>
+  <div class="hud-next" id="h-next">Next: 🌿 Nug (100)</div>
+  <div class="hud-next-preview" id="h-preview">
+    <div class="hud-next-info">
+      <div class="hud-next-name" id="h-prev-name">Nug</div>
+      <div class="hud-next-need" id="h-prev-need">100 ☁️ to go</div>
+    </div>
+    <div class="hud-next-icon" id="h-prev-icon">🌿</div>
+  </div>
+</div>
+<div class="hud-zone" id="h-zone"></div>
+<div class="hud-hint" id="h-hint"></div>
+<div class="hud-buffs" id="h-buffs"></div>
+
+<div class="evo-overlay" id="evo">
+  <div class="evo-card">
+    <div class="evo-icon" id="evo-icon">🌿</div>
+    <div class="evo-label">EVOLVED</div>
+    <div class="evo-name" id="evo-name">Nug</div>
+    <div class="evo-flavor" id="evo-flavor"></div>
+  </div>
+</div>
+
+<script>
+// ========= CONSTANTS =========
+const RANKS = [
+  { name:'Seed',    icon:'🌱', at:0,       flavor:'Plant the seed. Start the grind.' },
+  { name:'Nug',     icon:'🌿', at:100,     flavor:'Got a lil something. Keep stacking.' },
+  { name:'Dime',    icon:'💰', at:1e3,     flavor:'Bag secured. Moving weight.' },
+  { name:'Gram',    icon:'🍃', at:5e3,     flavor:'Full g energy. Unlocked the Lounge.' },
+  { name:'Eighth',  icon:'🌲', at:25e3,    flavor:'Proper weight. The Dispo is open.' },
+  { name:'Quarter', icon:'⚖️', at:100e3,   flavor:'Quarter pack. Certified plugged in.' },
+  { name:'Half O',  icon:'🏔️', at:500e3,   flavor:'Heavy hitter. Half zip loaded.' },
+  { name:'Zip',     icon:'👑', at:2e6,     flavor:'Full pack. The Stash is unlocked.' },
+  { name:'QP',      icon:'💎', at:10e6,    flavor:'Supplier status. QP on deck.' },
+  { name:'Elbow',   icon:'🔥', at:50e6,    flavor:'Legendary. A whole elbow.' },
+];
+
+const WW = 2400, WH = 2400;
+const ZONES = [
+  { id:'block',  name:'The Block',   x:0,    y:0,    w:1200, h:1200, ground:'#0c1a0e', accent:'#22c55e', grid:'rgba(34,197,94,0.04)',  reqRank:0 },
+  { id:'dispo',  name:'The Dispo',   x:1200, y:0,    w:1200, h:1200, ground:'#120c1a', accent:'#a855f7', grid:'rgba(168,85,247,0.04)', reqRank:4 },
+  { id:'lounge', name:'The Lounge',  x:0,    y:1200, w:1200, h:1200, ground:'#1a0c10', accent:'#f43f5e', grid:'rgba(244,63,94,0.04)',  reqRank:3 },
+  { id:'stash',  name:'The Stash',   x:1200, y:1200, w:1200, h:1200, ground:'#1a160c', accent:'#fbbf24', grid:'rgba(251,191,36,0.04)', reqRank:7 },
+];
+
+const ZONE_ITEMS = {
+  block:  [{icon:'🌿',name:'Nug',val:3},{icon:'💰',name:'Dime Bag',val:5},{icon:'🍃',name:'Gram',val:8}],
+  dispo:  [{icon:'👾',name:"Pac Man's",val:15},{icon:'🫠',name:'Whole Melts',val:20},{icon:'🎂',name:'Cake Bar',val:30},{icon:'⬡',name:'Hex Fuel',val:45},{icon:'🃏',name:'Aces',val:60},{icon:'👑',name:'Muha Meds',val:100}],
+  lounge: [{icon:'🫧',name:'Elf Bar',val:15},{icon:'🌀',name:'Lost Mary',val:25},{icon:'⚡',name:'Geek Bar',val:40},{icon:'☁️',name:'Flum Float',val:60},{icon:'🔥',name:'Puffco',val:100}],
+  stash:  [{icon:'💎',name:'Diamond Stash',val:200},{icon:'🏆',name:'Trophy Pack',val:500}],
+};
+
+// ========= STATE =========
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const SAVE_KEY = 'za_grind_v2';
+
+let S = {
+  clouds: 0, total: 0, rank: 0,
+  px: 600, py: 600, // player position (center of The Block)
+  lastTick: Date.now(),
+};
+let cam = { x: 0, y: 0 };
+let curZone = ZONES[0], prevZoneId = 'block';
+let items = [], hazards = [], spots = [], floaters = [], particles = [];
+let powerups = [], ucops = []; // power-ups and undercover cops
+let buffs = { shield:0, speed:0, magnet:0, double:0 }; // active buff timers
+let keys = { up:0, down:0, left:0, right:0, dash:0 };
+let touch = { active:false, sx:0, sy:0, dx:0, dy:0 };
+let dashCooldown = 0, dashTimer = 0, invTimer = 0;
+let evoTimer = 0, hintTimer = 8;
+let zoneBanner = { text:'', color:'', timer:0 };
+let time = 0, saveTimer = 0, puSpawnTimer = 8, ucopSpawnTimer = 12;
+let isMobile = 'ontouchstart' in window;
+
+const POWERUP_TYPES = [
+  { id:'shield', icon:'🛡️', name:'Shield',     color:'#3b82f6', dur:6,  desc:'Cop-proof!' },
+  { id:'speed',  icon:'⚡',  name:'Speed Boost', color:'#f59e0b', dur:5,  desc:'Zoom!' },
+  { id:'magnet', icon:'🧲',  name:'Magnet',      color:'#a855f7', dur:7,  desc:'Vacuum!' },
+  { id:'double', icon:'💥',  name:'2x Clouds',   color:'#ef4444', dur:8,  desc:'Double up!' },
+];
+
+// ========= HELPERS =========
+function fmt(n) {
+  if(n>=1e12) return (n/1e12).toFixed(1)+'T';
+  if(n>=1e9)  return (n/1e9).toFixed(1)+'B';
+  if(n>=1e6)  return (n/1e6).toFixed(1)+'M';
+  if(n>=1e3)  return (n/1e3).toFixed(1)+'K';
+  return Math.floor(n).toString();
+}
+function dist(a,b) { return Math.hypot(a.x-b.x, a.y-b.y); }
+function rnd(lo,hi) { return lo + Math.random()*(hi-lo); }
+function getZone(x,y) { return ZONES.find(z => x>=z.x && x<z.x+z.w && y>=z.y && y<z.y+z.h) || null; }
+function zoneOpen(z) { return S.rank >= z.reqRank; }
+function playerSpeed() { return (155 + S.rank * 18 + (dashTimer > 0 ? 200 : 0)) * (buffs.speed > 0 ? 1.6 : 1); }
+function collectRadius() { return (22 + S.rank * 2) * (buffs.magnet > 0 ? 2.5 : 1); }
+
+// ========= WORLD GEN =========
+function genWorld() {
+  items.length = 0; hazards.length = 0; spots.length = 0;
+  for (const z of ZONES) {
+    const pad = 60;
+    const rx = () => rnd(z.x+pad, z.x+z.w-pad);
+    const ry = () => rnd(z.y+pad, z.y+z.h-pad);
+    // Common pickups (za-themed)
+    const commonPool = z.id==='dispo' ? ['🛒','💊','🧪'] : z.id==='lounge' ? ['🫧','💨','☁️'] : z.id==='stash' ? ['💰','🪙','💵'] : ['🌿','🍃','🌱'];
+    for(let i=0;i<40;i++) items.push({ x:rx(), y:ry(), emoji:commonPool[i%commonPool.length], val:1, zone:z.id, type:'cloud', gone:0 });
+    // Mid pickups
+    const midPool = z.id==='dispo' ? [{e:'🔋',n:'Cart'},{e:'💉',n:'Dab'}] : z.id==='lounge' ? [{e:'🫧',n:'Pod'},{e:'💨',n:'Cloud'}] : z.id==='stash' ? [{e:'💎',n:'Rock'},{e:'🔮',n:'Crystal'}] : [{e:'🚬',n:'J'},{e:'🍪',n:'Edible'}];
+    for(let i=0;i<15;i++) { const m=midPool[i%midPool.length]; items.push({ x:rx(), y:ry(), emoji:m.e, val:5, zone:z.id, type:'smoke', name:m.n, gone:0 }); }
+    // Rare pickups
+    const rarePool = z.id==='dispo' ? [{e:'🔥',n:'Live Resin',v:25}] : z.id==='lounge' ? [{e:'⚡',n:'Buzz Hit',v:25}] : z.id==='stash' ? [{e:'🏆',n:'Gold Bar',v:50}] : [{e:'🍁',n:'Exotic Bud',v:25}];
+    for(let i=0;i<5;i++) { const r=rarePool[i%rarePool.length]; items.push({ x:rx(), y:ry(), emoji:r.e, val:r.v, zone:z.id, type:'star', name:r.n, gone:0 }); }
+    // Premium zone items
+    const premiums = ZONE_ITEMS[z.id] || [];
+    for(const p of premiums) {
+      for(let i=0;i<2;i++) items.push({ x:rx(), y:ry(), emoji:p.icon, val:p.val, zone:z.id, type:'premium', name:p.name, gone:0 });
+    }
+    // Smoke spots (passive earn zones) — named variety
+    const spotTypes = [
+      { name:'Whataburger', emoji:'🍔' },
+      { name:'The Park', emoji:'🌳' },
+      { name:'Smoke Spot', emoji:'💨' },
+      { name:'The Trap', emoji:'🏚️' },
+      { name:'The Gas Station', emoji:'⛽' },
+      { name:'The Alley', emoji:'🌙' },
+    ];
+    for(let i=0;i<3;i++) {
+      const st = spotTypes[(ZONES.indexOf(z)*3+i) % spotTypes.length];
+      spots.push({ x:rx(), y:ry(), r:55, zone:z.id, accent:z.accent, name:st.name, emoji:st.emoji });
+    }
+    // Hazards
+    for(let i=0;i<4;i++) {
+      const hx=rx(), hy=ry();
+      hazards.push({ x:hx, y:hy, ox:hx, oy:hy, r:18, dir:Math.random()<0.5?'h':'v', range:rnd(80,160), spd:rnd(30,70), phase:rnd(0,6.28), zone:z.id });
+    }
+  }
+}
+
+// ========= INPUT =========
+window.addEventListener('keydown', e => {
+  if(e.key==='ArrowUp'||e.key==='w'||e.key==='W') keys.up=1;
+  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') keys.down=1;
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keys.left=1;
+  if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') keys.right=1;
+  if(e.key===' '||e.key==='Shift') { keys.dash=1; tryDash(); }
+});
+window.addEventListener('keyup', e => {
+  if(e.key==='ArrowUp'||e.key==='w'||e.key==='W') keys.up=0;
+  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') keys.down=0;
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keys.left=0;
+  if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') keys.right=0;
+  if(e.key===' '||e.key==='Shift') keys.dash=0;
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touch.active = true;
+  touch.sx = t.clientX; touch.sy = t.clientY;
+  touch.dx = 0; touch.dy = 0;
+  if (e.touches.length > 1) tryDash();
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if(!touch.active) return;
+  const t = e.touches[0];
+  touch.dx = t.clientX - touch.sx;
+  touch.dy = t.clientY - touch.sy;
+  const d = Math.hypot(touch.dx, touch.dy);
+  const max = 60;
+  if(d > max) { touch.dx = touch.dx/d*max; touch.dy = touch.dy/d*max; }
+});
+canvas.addEventListener('touchend', e => {
+  if(e.touches.length === 0) { touch.active = false; touch.dx = 0; touch.dy = 0; }
+});
+
+function tryDash() { if(dashCooldown <= 0) { dashTimer = 0.25; dashCooldown = 1.5; } }
+
+// ========= UPDATE =========
+function update(dt) {
+  time += dt;
+  if(dashTimer > 0) dashTimer -= dt;
+  if(dashCooldown > 0) dashCooldown -= dt;
+  if(invTimer > 0) invTimer -= dt;
+  if(evoTimer > 0) { evoTimer -= dt; if(evoTimer <= 0) document.getElementById('evo').classList.remove('show'); return; }
+  if(zoneBanner.timer > 0) zoneBanner.timer -= dt;
+  if(hintTimer > 0) hintTimer -= dt;
+  if(hintTimer <= 0 && hintTimer > -1) { document.getElementById('h-hint').classList.add('hidden'); hintTimer = -1; }
+  saveTimer -= dt;
+  if(saveTimer <= 0) { save(); saveTimer = 5; }
+
+  // Movement
+  let mx = keys.right - keys.left;
+  let my = keys.down - keys.up;
+  if(touch.active) {
+    const d = Math.hypot(touch.dx, touch.dy);
+    if(d > 8) { mx = touch.dx/d; my = touch.dy/d; }
+  }
+  const len = Math.hypot(mx, my);
+  if(len > 0) {
+    const spd = playerSpeed() * dt;
+    let nx = S.px + (mx/len) * spd;
+    let ny = S.py + (my/len) * spd;
+    // World bounds
+    nx = Math.max(20, Math.min(WW-20, nx));
+    ny = Math.max(20, Math.min(WH-20, ny));
+    // Zone lock check
+    const nz = getZone(nx, ny);
+    if(nz && !zoneOpen(nz)) {
+      // Push back — allow movement along the border
+      const cz = getZone(S.px, S.py);
+      const nzx = getZone(nx, S.py);
+      const nzy = getZone(S.px, ny);
+      if(nzx && zoneOpen(nzx)) S.px = nx;
+      if(nzy && zoneOpen(nzy)) S.py = ny;
+      if(!zoneBanner.timer || zoneBanner.timer <= 0) {
+        zoneBanner.text = '🔒 ' + nz.name + ' — reach ' + RANKS[nz.reqRank].icon + ' ' + RANKS[nz.reqRank].name;
+        zoneBanner.color = nz.accent;
+        zoneBanner.timer = 1.5;
+      }
+    } else {
+      S.px = nx; S.py = ny;
+    }
+    // Dash trail particles
+    if(dashTimer > 0 && Math.random() < 0.6) {
+      particles.push({ x:S.px+rnd(-8,8), y:S.py+rnd(-8,8), vx:rnd(-30,30), vy:rnd(-30,30), life:0.4, color:curZone.accent });
+    }
+  }
+
+  // Camera
+  cam.x += (S.px - cam.x - window.innerWidth/2) * Math.min(dt*5, 1);
+  cam.y += (S.py - cam.y - window.innerHeight/2) * Math.min(dt*5, 1);
+
+  // Zone detection
+  const z = getZone(S.px, S.py);
+  if(z && z.id !== prevZoneId) {
+    curZone = z; prevZoneId = z.id;
+    showZoneBanner(z.name, z.accent);
+  }
+
+  // Collect items
+  const cr = collectRadius();
+  for(const it of items) {
+    if(it.gone) continue;
+    if(!zoneOpen(ZONES.find(z=>z.id===it.zone))) continue;
+    if(dist({x:S.px,y:S.py}, it) < cr) {
+      it.gone = Date.now();
+      const earned = it.val * (buffs.double > 0 ? 2 : 1);
+      S.clouds += earned;
+      S.total += earned;
+      const label = (buffs.double>0?'💥 ':'') + (it.name ? it.name+' +'+fmt(earned) : '+'+fmt(earned));
+      floaters.push({ x:it.x, y:it.y, text:label, color: it.type==='premium'?curZone.accent:'#fbbf24', t:0 });
+      // Burst particles
+      for(let i=0;i<5;i++) particles.push({ x:it.x, y:it.y, vx:rnd(-60,60), vy:rnd(-60,60), life:0.35, color:'#fbbf24' });
+      checkRank();
+    }
+  }
+  // Respawn items
+  const now = Date.now();
+  for(const it of items) {
+    if(it.gone && now - it.gone > (it.type==='premium'?8000:it.type==='star'?5000:2500)) {
+      it.gone = 0;
+      // Reposition within zone
+      const z = ZONES.find(z=>z.id===it.zone);
+      if(z) { it.x = rnd(z.x+60,z.x+z.w-60); it.y = rnd(z.y+60,z.y+z.h-60); }
+    }
+  }
+
+  // Smoke spots (passive earn)
+  for(const sp of spots) {
+    if(!zoneOpen(ZONES.find(z=>z.id===sp.zone))) continue;
+    if(dist({x:S.px,y:S.py},{x:sp.x,y:sp.y}) < sp.r) {
+      const earn = (2 + S.rank * 0.5) * dt;
+      S.clouds += earn; S.total += earn;
+      if(Math.random() < dt * 2) floaters.push({ x:sp.x+rnd(-20,20), y:sp.y-20, text:'+'+fmt(earn*5), color:sp.accent, t:0 });
+    }
+  }
+
+  // Hazards
+  for(const h of hazards) {
+    if(!zoneOpen(ZONES.find(z=>z.id===h.zone))) continue;
+    if(h.dir==='h') h.x = h.ox + Math.sin(time*h.spd/50+h.phase)*h.range;
+    else h.y = h.oy + Math.sin(time*h.spd/50+h.phase)*h.range;
+    if(invTimer <= 0 && buffs.shield <= 0 && dist({x:S.px,y:S.py},h) < h.r + 14) {
+      const loss = Math.max(5, Math.floor(S.clouds * 0.08));
+      S.clouds = Math.max(0, S.clouds - loss);
+      invTimer = 1.5;
+      floaters.push({ x:S.px, y:S.py-20, text:'🚨 -'+fmt(loss), color:'#f43f5e', t:0 });
+      for(let i=0;i<8;i++) particles.push({ x:S.px, y:S.py, vx:rnd(-80,80), vy:rnd(-80,80), life:0.4, color:'#3b82f6' });
+    }
+  }
+
+  // ---- Power-up spawning ----
+  puSpawnTimer -= dt;
+  if(puSpawnTimer <= 0) {
+    puSpawnTimer = rnd(10,20);
+    const z = curZone;
+    if(z && powerups.length < 6) {
+      const pt = POWERUP_TYPES[Math.floor(Math.random()*POWERUP_TYPES.length)];
+      const ang = Math.random()*Math.PI*2;
+      const d2 = rnd(120,350);
+      const px2 = Math.max(z.x+40,Math.min(z.x+z.w-40, S.px + Math.cos(ang)*d2));
+      const py2 = Math.max(z.y+40,Math.min(z.y+z.h-40, S.py + Math.sin(ang)*d2));
+      powerups.push({ x:px2, y:py2, type:pt, zone:z.id, life:15, spawn:time });
+    }
+  }
+  // Collect power-ups
+  for(let i=powerups.length-1;i>=0;i--) {
+    const pu = powerups[i];
+    pu.life -= dt;
+    if(pu.life <= 0) { powerups.splice(i,1); continue; }
+    if(dist({x:S.px,y:S.py},pu) < cr+8) {
+      buffs[pu.type.id] = pu.type.dur;
+      floaters.push({ x:pu.x, y:pu.y-10, text:pu.type.icon+' '+pu.type.desc, color:pu.type.color, t:0 });
+      for(let j=0;j<10;j++) particles.push({ x:pu.x, y:pu.y, vx:rnd(-80,80), vy:rnd(-80,80), life:0.5, color:pu.type.color });
+      powerups.splice(i,1);
+    }
+  }
+  // Tick buff timers
+  for(const b in buffs) if(buffs[b]>0) buffs[b] = Math.max(0, buffs[b]-dt);
+
+  // ---- Undercover cops ----
+  ucopSpawnTimer -= dt;
+  if(ucopSpawnTimer <= 0) {
+    ucopSpawnTimer = rnd(6,14);
+    const z = curZone;
+    if(z && zoneOpen(z) && ucops.length < 5) {
+      // Spawn just off screen near the player
+      const ang = Math.random()*Math.PI*2;
+      const sd = rnd(250,420);
+      const ux = Math.max(z.x+30,Math.min(z.x+z.w-30, S.px + Math.cos(ang)*sd));
+      const uy = Math.max(z.y+30,Math.min(z.y+z.h-30, S.py + Math.sin(ang)*sd));
+      ucops.push({ x:ux, y:uy, r:16, zone:z.id, reveal:0, life:8, warned:false });
+    }
+  }
+  // Update undercover cops
+  for(let i=ucops.length-1;i>=0;i--) {
+    const uc = ucops[i];
+    uc.life -= dt;
+    if(uc.life <= 0) { ucops.splice(i,1); continue; }
+    const dd = dist({x:S.px,y:S.py},uc);
+    // Reveal when player gets close
+    if(dd < 130) uc.reveal = Math.min(1, uc.reveal + dt*3);
+    else uc.reveal = Math.max(0, uc.reveal - dt*0.5);
+    // Chase the player once revealed
+    if(uc.reveal > 0.5) {
+      const chaseSpd = (80 + S.rank*8) * dt;
+      const dx2 = S.px - uc.x, dy2 = S.py - uc.y;
+      const dl2 = Math.hypot(dx2,dy2);
+      if(dl2 > 5) { uc.x += (dx2/dl2)*chaseSpd; uc.y += (dy2/dl2)*chaseSpd; }
+    }
+    // Warning flash when first appearing
+    if(uc.reveal > 0.3 && !uc.warned) {
+      uc.warned = true;
+      floaters.push({ x:uc.x, y:uc.y-20, text:'⚠️ UNDERCOVER!', color:'#fbbf24', t:0 });
+    }
+    // Hit check
+    if(invTimer <= 0 && buffs.shield <= 0 && dd < uc.r + 14 && uc.reveal > 0.5) {
+      const loss = Math.max(8, Math.floor(S.clouds * 0.12));
+      S.clouds = Math.max(0, S.clouds - loss);
+      invTimer = 2;
+      floaters.push({ x:S.px, y:S.py-20, text:'🚨 BUSTED -'+fmt(loss), color:'#f43f5e', t:0 });
+      for(let j=0;j<12;j++) particles.push({ x:S.px, y:S.py, vx:rnd(-100,100), vy:rnd(-100,100), life:0.5, color:'#ef4444' });
+      ucops.splice(i,1);
+    }
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--) {
+    const p = particles[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+    if(p.life <= 0) particles.splice(i,1);
+  }
+  // Floaters
+  for(let i=floaters.length-1;i>=0;i--) {
+    floaters[i].t += dt;
+    if(floaters[i].t > 0.8) floaters.splice(i,1);
+  }
+
+  updateHUD();
+  updateBuffHUD();
+}
+
+function checkRank() {
+  let newRank = 0;
+  for(let r=0;r<RANKS.length;r++) if(S.total>=RANKS[r].at) newRank = r;
+  if(newRank > S.rank) {
+    S.rank = newRank;
+    triggerEvolution();
+  }
+}
+function triggerEvolution() {
+  const r = RANKS[S.rank];
+  document.getElementById('evo-icon').textContent = r.icon;
+  document.getElementById('evo-name').textContent = r.name;
+  document.getElementById('evo-flavor').textContent = r.flavor;
+  document.getElementById('evo').classList.add('show');
+  evoTimer = 2;
+  for(let i=0;i<25;i++) particles.push({ x:S.px, y:S.py, vx:rnd(-120,120), vy:rnd(-120,120), life:rnd(0.5,1), color:'#fbbf24' });
+  save();
+}
+
+// ========= RENDER =========
+function render() {
+  canvas.width = window.innerWidth * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  const W = window.innerWidth, H = window.innerHeight;
+
+  // Clamp camera
+  cam.x = Math.max(0, Math.min(WW - W, cam.x));
+  cam.y = Math.max(0, Math.min(WH - H, cam.y));
+
+  ctx.clearRect(0,0,W,H);
+
+  // Draw zones
+  for(const z of ZONES) {
+    const sx = z.x-cam.x, sy = z.y-cam.y;
+    if(sx+z.w<0||sx>W||sy+z.h<0||sy>H) continue;
+    // Ground
+    ctx.fillStyle = zoneOpen(z) ? z.ground : '#060810';
+    ctx.fillRect(sx,sy,z.w,z.h);
+    // Grid
+    if(zoneOpen(z)) {
+      ctx.strokeStyle = z.grid;
+      ctx.lineWidth = 1;
+      const gs = 80;
+      const x0 = Math.max(0, Math.floor((cam.x-z.x)/gs)*gs);
+      const y0 = Math.max(0, Math.floor((cam.y-z.y)/gs)*gs);
+      for(let gx=x0; gx<z.w && z.x+gx-cam.x<W; gx+=gs) {
+        const lx = z.x+gx-cam.x;
+        if(lx>=sx && lx<=sx+z.w) { ctx.beginPath(); ctx.moveTo(lx,Math.max(sy,0)); ctx.lineTo(lx,Math.min(sy+z.h,H)); ctx.stroke(); }
+      }
+      for(let gy=y0; gy<z.h && z.y+gy-cam.y<H; gy+=gs) {
+        const ly = z.y+gy-cam.y;
+        if(ly>=sy && ly<=sy+z.h) { ctx.beginPath(); ctx.moveTo(Math.max(sx,0),ly); ctx.lineTo(Math.min(sx+z.w,W),ly); ctx.stroke(); }
+      }
+    }
+    // Lock overlay for closed zones
+    if(!zoneOpen(z)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(sx,sy,z.w,z.h);
+    }
+  }
+
+  // Zone borders
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 2;
+  for(const z of ZONES) {
+    ctx.strokeRect(z.x-cam.x, z.y-cam.y, z.w, z.h);
+  }
+
+  // Smoke spots
+  for(const sp of spots) {
+    if(!zoneOpen(ZONES.find(z=>z.id===sp.zone))) continue;
+    const sx=sp.x-cam.x, sy=sp.y-cam.y;
+    if(sx+sp.r<0||sx-sp.r>W||sy+sp.r<0||sy-sp.r>H) continue;
+    const inSpot = dist({x:S.px,y:S.py},{x:sp.x,y:sp.y}) < sp.r;
+    const grad = ctx.createRadialGradient(sx,sy,0,sx,sy,sp.r);
+    const alpha = inSpot ? 0.18 : 0.08;
+    grad.addColorStop(0, sp.accent + (inSpot?'40':'20'));
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(sx,sy,sp.r,0,Math.PI*2); ctx.fill();
+    // Ring
+    ctx.strokeStyle = sp.accent + (inSpot?'50':'18');
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(sx,sy,sp.r,0,Math.PI*2); ctx.stroke();
+    // Spot icon (always visible)
+    ctx.font = (inSpot?'22':'18')+'px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(sp.emoji||'💨', sx, sy);
+    // Label (always visible)
+    ctx.font = '600 '+(inSpot?'11':'9')+'px "Chakra Petch",sans-serif';
+    ctx.fillStyle = sp.accent + (inSpot?'cc':'70');
+    ctx.textAlign = 'center';
+    ctx.fillText(sp.name||'SMOKE SPOT', sx, sy+sp.r+14);
+  }
+
+  // Collectibles
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(const it of items) {
+    if(it.gone) continue;
+    if(!zoneOpen(ZONES.find(z=>z.id===it.zone))) continue;
+    const sx=it.x-cam.x, sy=it.y-cam.y;
+    if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
+    const bob = Math.sin(time*2.5+it.x*0.01+it.y*0.01)*3;
+    const sz = it.type==='premium' ? 22 : it.type==='star' ? 20 : it.type==='smoke' ? 17 : 15;
+    ctx.font = sz+'px serif';
+    ctx.fillText(it.emoji, sx, sy+bob);
+  }
+
+  // Hazards
+  for(const h of hazards) {
+    if(!zoneOpen(ZONES.find(z=>z.id===h.zone))) continue;
+    const sx=h.x-cam.x, sy=h.y-cam.y;
+    if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
+    const pulse = 1 + Math.sin(time*4)*0.15;
+    ctx.beginPath();
+    ctx.arc(sx, sy, h.r*pulse, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(59,130,246,0.2)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(59,130,246,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Red/blue flash for cop car vibe
+    if(Math.floor(time*3)%2===0) { ctx.strokeStyle='rgba(239,68,68,0.4)'; ctx.stroke(); }
+    ctx.font = '18px serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('👮', sx, sy);
+  }
+
+  // Power-ups
+  for(const pu of powerups) {
+    const sx=pu.x-cam.x, sy=pu.y-cam.y;
+    if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
+    const bob = Math.sin(time*4+pu.spawn)*6;
+    const glow = 0.5+Math.sin(time*3)*0.3;
+    // Glow ring
+    ctx.beginPath(); ctx.arc(sx,sy+bob,18,0,Math.PI*2);
+    ctx.fillStyle = pu.type.color + '25';
+    ctx.fill();
+    ctx.strokeStyle = pu.type.color + (pu.life<3?Math.floor(glow*99).toString(16).padStart(2,'0'):'80');
+    ctx.lineWidth = 2; ctx.stroke();
+    // Icon
+    ctx.font = '20px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(pu.type.icon, sx, sy+bob);
+    // Blink when about to expire
+    if(pu.life < 3 && Math.floor(time*6)%2===0) {
+      ctx.font = '600 8px "Chakra Petch",sans-serif';
+      ctx.fillStyle = pu.type.color;
+      ctx.fillText(Math.ceil(pu.life)+'s', sx, sy+bob+22);
+    }
+  }
+
+  // Undercover cops
+  for(const uc of ucops) {
+    if(uc.reveal < 0.05) continue;
+    const sx=uc.x-cam.x, sy=uc.y-cam.y;
+    if(sx<-40||sx>W+40||sy<-40||sy>H+40) continue;
+    ctx.globalAlpha = uc.reveal;
+    // Warning ring — grows as they reveal
+    const rr = uc.r*(1+2*(1-uc.reveal));
+    ctx.beginPath(); ctx.arc(sx,sy,rr,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(239,68,68,'+(0.15*uc.reveal)+')';
+    ctx.fill();
+    if(uc.reveal > 0.5) {
+      ctx.strokeStyle = Math.floor(time*5)%2===0?'rgba(59,130,246,0.6)':'rgba(239,68,68,0.6)';
+      ctx.lineWidth = 2; ctx.stroke();
+    }
+    // The cop — looks like a normal person until revealed
+    ctx.font = (14+uc.reveal*6)+'px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(uc.reveal > 0.5 ? '🕵️' : '🧑', sx, sy);
+    ctx.globalAlpha = 1;
+  }
+
+  // Particles
+  for(const p of particles) {
+    const sx=p.x-cam.x, sy=p.y-cam.y;
+    ctx.globalAlpha = Math.max(0, p.life/0.4);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(sx,sy,3,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Player
+  const px = S.px-cam.x, py = S.py-cam.y;
+  // Glow
+  const gr = ctx.createRadialGradient(px,py,0,px,py,35+S.rank*3);
+  gr.addColorStop(0, (curZone?.accent||'#22c55e') + '30');
+  gr.addColorStop(1, 'transparent');
+  ctx.fillStyle = gr;
+  ctx.beginPath(); ctx.arc(px,py,35+S.rank*3,0,Math.PI*2); ctx.fill();
+  // Shield aura
+  if(buffs.shield > 0) {
+    ctx.beginPath(); ctx.arc(px,py,28+S.rank*3,0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(59,130,246,'+(0.4+Math.sin(time*6)*0.2)+')';
+    ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = 'rgba(59,130,246,0.08)';
+    ctx.fill();
+  }
+  // Blink when invincible
+  if(invTimer > 0 && Math.floor(time*10)%2===0) { /* skip drawing */ }
+  else {
+    const psz = 28 + S.rank * 2;
+    ctx.font = psz+'px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(RANKS[S.rank].icon, px, py);
+  }
+  // Magnet ring
+  if(buffs.magnet > 0) {
+    ctx.beginPath(); ctx.arc(px,py,collectRadius(),0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(168,85,247,'+(0.15+Math.sin(time*3)*0.1)+')';
+    ctx.lineWidth = 1; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  // Direction indicator
+  {
+    let dx = keys.right-keys.left, dy = keys.down-keys.up;
+    if(touch.active && Math.hypot(touch.dx,touch.dy)>8) { dx=touch.dx; dy=touch.dy; }
+    const dl = Math.hypot(dx,dy);
+    if(dl>0) {
+      const ax = px + (dx/dl)*22, ay = py + (dy/dl)*22;
+      ctx.fillStyle = (curZone?.accent||'#22c55e') + '60';
+      ctx.beginPath(); ctx.arc(ax,ay,3,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Floaters
+  ctx.font = '600 14px "Chakra Petch",sans-serif';
+  ctx.textAlign = 'center';
+  for(const f of floaters) {
+    const sx=f.x-cam.x, sy=f.y-cam.y - f.t*50;
+    ctx.globalAlpha = Math.max(0, 1-f.t/0.8);
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, sx, sy);
+  }
+  ctx.globalAlpha = 1;
+
+  // Touch joystick
+  if(touch.active && isMobile) {
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(touch.sx, touch.sy, 50, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(touch.sx+touch.dx, touch.sy+touch.dy, 16, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Zone banner
+  if(zoneBanner.timer > 0) {
+    const a = Math.min(1, zoneBanner.timer / 0.3, (zoneBanner.timer > 1.2 ? 1 : zoneBanner.timer/1.2));
+    ctx.globalAlpha = a;
+    ctx.font = '700 26px "Chakra Petch",sans-serif';
+    ctx.fillStyle = zoneBanner.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(zoneBanner.text, W/2, H/2 - 50);
+    ctx.globalAlpha = 1;
+  }
+
+  // Minimap
+  drawMinimap(W, H);
+}
+
+function drawMinimap(W, H) {
+  const mw=90, mh=90, mx=W-mw-10, my=H-mh-46;
+  const s = mw/WW;
+  ctx.globalAlpha = 0.65;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.roundRect(mx-4,my-4,mw+8,mh+8,5); ctx.fill();
+  for(const z of ZONES) {
+    ctx.fillStyle = zoneOpen(z) ? z.ground : '#050508';
+    ctx.fillRect(mx+z.x*s, my+z.y*s, z.w*s, z.h*s);
+    if(zoneOpen(z)) { ctx.strokeStyle = z.accent+'40'; ctx.lineWidth=1; ctx.strokeRect(mx+z.x*s,my+z.y*s,z.w*s,z.h*s); }
+  }
+  // Player dot
+  ctx.globalAlpha = 0.9 + Math.sin(time*4)*0.1;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(mx+S.px*s, my+S.py*s, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// ========= HUD =========
+function showZoneBanner(name, color) {
+  zoneBanner.text = name; zoneBanner.color = color; zoneBanner.timer = 2;
+}
+function updateHUD() {
+  const r = RANKS[S.rank];
+  document.getElementById('h-rank').textContent = r.icon + ' ' + r.name;
+  document.getElementById('h-clouds').textContent = fmt(S.clouds) + ' ☁️';
+  const nxt = RANKS[S.rank+1];
+  const preview = document.getElementById('h-preview');
+  if(nxt) {
+    const prog = Math.min((S.total-r.at)/(nxt.at-r.at), 1);
+    document.getElementById('h-bar').style.width = (prog*100)+'%';
+    document.getElementById('h-next').textContent = 'Next: '+nxt.icon+' '+nxt.name+' ('+fmt(nxt.at)+')';
+    preview.hidden = false;
+    document.getElementById('h-prev-icon').textContent = nxt.icon;
+    document.getElementById('h-prev-name').textContent = nxt.name;
+    const need = Math.max(0, nxt.at - S.total);
+    document.getElementById('h-prev-need').textContent = fmt(need)+' ☁️ to go';
+  } else {
+    document.getElementById('h-bar').style.width = '100%';
+    document.getElementById('h-next').textContent = '✦ MAX RANK';
+    preview.hidden = true;
+  }
+}
+
+function updateBuffHUD() {
+  const el = document.getElementById('h-buffs');
+  let html = '';
+  for(const pt of POWERUP_TYPES) {
+    if(buffs[pt.id] > 0) {
+      html += '<div class="buff-pill" style="border-color:'+pt.color+'40"><span class="bp-icon">'+pt.icon+'</span><span class="bp-time" style="color:'+pt.color+'">'+Math.ceil(buffs[pt.id])+'s</span></div>';
+    }
+  }
+  el.innerHTML = html;
+}
+
+// ========= SAVE/LOAD (db-backed) =========
+let dbRef = null; // will be set if db capability is available
+let dbSaving = false;
+let dbDirty = false;
+
+function save() {
+  S.lastTick = Date.now();
+  // Always try localStorage as a fast local cache
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch(e){}
+  // Save to artifact db (persistent, survives everything)
+  if(dbRef && !dbSaving) {
+    dbSaving = true;
+    dbDirty = false;
+    dbRef.set({ clouds:S.clouds, total:S.total, rank:S.rank, px:S.px, py:S.py, lastTick:S.lastTick })
+      .then(() => { dbSaving = false; if(dbDirty) save(); })
+      .catch(() => { dbSaving = false; });
+  } else if(dbRef) {
+    dbDirty = true; // will save after current write finishes
+  }
+}
+
+function loadLocal() {
+  try {
+    let d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if(d && typeof d.px==='number') { Object.assign(S, d); return true; }
+  } catch(e){}
+  return false;
+}
+
+// ========= SAVE ON EXIT =========
+window.addEventListener('beforeunload', save);
+window.addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if(document.hidden) save(); });
+
+// ========= INIT =========
+let lastFrame = 0;
+function loop(ts) {
+  const dt = Math.min((ts - lastFrame)/1000, 0.05);
+  lastFrame = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+function startGame() {
+  cam.x = S.px - window.innerWidth/2;
+  cam.y = S.py - window.innerHeight/2;
+  curZone = getZone(S.px, S.py) || ZONES[0];
+  prevZoneId = curZone.id;
+  genWorld();
+  const hint = document.getElementById('h-hint');
+  hint.textContent = isMobile ? 'Touch & drag to move · Two fingers to dash' : 'WASD to move · Space to dash';
+  updateHUD();
+  save(); // persist immediately
+  requestAnimationFrame(loop);
+}
+
+function applyBestSave(hotData, dbData) {
+  // Gather all save sources and pick whichever has the most progress
+  const local = {};
+  const hadLocal = loadLocal();
+  if(hadLocal) { local.clouds = S.clouds; local.total = S.total; local.rank = S.rank; local.px = S.px; local.py = S.py; local.lastTick = S.lastTick; }
+  // Reset S for comparison
+  S.clouds = 0; S.total = 0; S.rank = 0; S.px = 600; S.py = 600; S.lastTick = Date.now();
+
+  let best = null, bestTotal = -1;
+  if(hadLocal && (local.total||0) > bestTotal) { best = local; bestTotal = local.total||0; }
+  if(dbData && typeof dbData.px === 'number' && (dbData.total||0) > bestTotal) { best = dbData; bestTotal = dbData.total||0; }
+  if(hotData && typeof hotData.px === 'number' && (hotData.total||0) > bestTotal) { best = hotData; bestTotal = hotData.total||0; }
+
+  if(best) {
+    S.clouds = best.clouds||0; S.total = best.total||0;
+    S.rank = best.rank||0; S.px = best.px||600; S.py = best.py||600;
+    S.lastTick = best.lastTick||Date.now();
+    // Offline bonus
+    const elapsed = (Date.now() - S.lastTick) / 1000;
+    const offlineRate = 1 + S.rank * 2;
+    const offlineEarnings = Math.floor(offlineRate * Math.min(elapsed, 4*3600));
+    if(offlineEarnings > 5) { S.clouds += offlineEarnings; S.total += offlineEarnings; }
+  }
+  S.lastTick = Date.now();
+}
+
+async function init(hotData) {
+  // Try to get the db capability for persistent saves
+  let dbData = null;
+  try {
+    const db = await claude.use('db');
+    if(db) {
+      dbRef = db.doc('saves/game');
+      const snap = await dbRef.get();
+      if(snap.exists) dbData = snap.data();
+    }
+  } catch(e) { /* db not available, localStorage only */ }
+
+  applyBestSave(hotData, dbData);
+  startGame();
+}
+
+if(window.claude?.hot?.snapshot) {
+  setInterval(() => window.claude.hot.snapshot({...S}), 3000);
+}
+window.claude?.hot?.ready ? window.claude.hot.ready(d=>init(d)) : init(window.claude?.hot?.data ?? null);
+</script>
