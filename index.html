@@ -1,638 +1,654 @@
 <title>Za Grind</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap">
 <style>
-  :root {
-    --void: #0B0F1A;
-    --smoke: #141B2D;
-    --haze: #1C2638;
-    --border: #243044;
-    --ash: #64748B;
-    --cloud: #E2E8F0;
-    --cloud-dim: #94A3B8;
-    --kush: #22C55E;
-    --kush-dim: rgba(34,197,94,0.12);
-    --kush-glow: rgba(34,197,94,0.25);
-    --purp: #A855F7;
-    --purp-dim: rgba(168,85,247,0.12);
-    --purp-glow: rgba(168,85,247,0.25);
-    --cherry: #F43F5E;
-    --cherry-dim: rgba(244,63,94,0.12);
-    --cherry-glow: rgba(244,63,94,0.25);
-    --gold: #FBBF24;
-    --gold-dim: rgba(251,191,36,0.12);
-    --gold-glow: rgba(251,191,36,0.35);
-    --display: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
-    --body: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
-  }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { background: #080c14; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
-  body {
-    margin: 0;
-    padding-inline: 16px;
-    background: var(--void);
-    color: var(--cloud);
-    font-family: var(--body);
-    font-size: 14px;
+  #hud {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: calc(env(safe-area-inset-top,0px) + 8px) 14px 0;
+    pointer-events: none; z-index: 10;
+    font-family: 'Chakra Petch','Segoe UI',system-ui,sans-serif;
     -webkit-font-smoothing: antialiased;
   }
+  .hud-row { display: flex; justify-content: space-between; align-items: center; }
+  .hud-rank { font-weight: 700; font-size: 15px; color: #e2e8f0; text-shadow: 0 1px 6px rgba(0,0,0,0.7); }
+  .hud-clouds { font-weight: 700; font-size: 18px; color: #fbbf24; text-shadow: 0 0 12px rgba(251,191,36,0.4); font-variant-numeric: tabular-nums; }
+  .hud-bar-wrap {
+    margin-top: 6px; height: 5px; border-radius: 3px;
+    background: rgba(255,255,255,0.08); overflow: hidden;
+  }
+  .hud-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#22c55e,#fbbf24); transition: width 0.3s; width: 0%; }
+  .hud-next { font-size: 11px; color: #64748b; margin-top: 3px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hud-zone {
+    position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    font-family: 'Chakra Petch',sans-serif; font-weight: 700; font-size: 28px;
+    pointer-events: none; z-index: 10; opacity: 0; transition: opacity 0.4s;
+    text-shadow: 0 2px 20px rgba(0,0,0,0.8); letter-spacing: 0.04em;
+  }
+  .hud-zone.show { opacity: 1; }
 
-  html, body { height: 100%; overflow: hidden; }
+  .hud-hint {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom,0px) + 14px); left: 50%; transform: translateX(-50%);
+    font-family: 'DM Sans',sans-serif; font-size: 12px; color: #64748b;
+    pointer-events: none; z-index: 10; text-align: center; white-space: nowrap;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    transition: opacity 1s; opacity: 1;
+  }
+  .hud-hint.hidden { opacity: 0; }
 
-  #app {
-    max-width: 420px;
-    margin: 0 auto;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* === STATUS BAR === */
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 0 6px;
-    flex-shrink: 0;
-  }
-  .rank-badge {
-    display: flex; align-items: center; gap: 8px;
-    font-family: var(--display); font-weight: 700; font-size: 15px;
-    letter-spacing: 0.02em;
-  }
-  .rank-badge .icon { font-size: 22px; }
-  .clouds-display {
-    text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-  .clouds-display .amount {
-    font-family: var(--display); font-weight: 700; font-size: 20px;
-    color: var(--gold);
-    text-shadow: 0 0 12px var(--gold-glow);
-  }
-  .clouds-display .label {
-    font-size: 11px; color: var(--ash);
-    text-transform: uppercase; letter-spacing: 0.08em;
-  }
-
-  /* === PROGRESS BAR === */
-  .progress-wrap {
-    flex-shrink: 0;
-    padding-block: 6px 2px;
-  }
-  .progress-track {
-    height: 6px; border-radius: 3px;
-    background: var(--haze);
-    overflow: hidden;
-  }
-  .progress-fill {
-    height: 100%; border-radius: 3px;
-    background: linear-gradient(90deg, var(--kush), var(--gold));
-    transition: width 0.4s ease;
-    width: 0%;
-  }
-  .progress-label {
-    display: block;
-    font-size: 11px; color: var(--ash);
-    margin-top: 4px; text-align: right;
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* === CLICK ZONE === */
-  .click-zone {
-    flex-shrink: 0;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    padding: 20px 0 12px;
-    position: relative;
-    user-select: none;
-  }
-  .orb-wrap {
-    position: relative;
+  /* Evolution overlay */
+  .evo-overlay {
+    position: fixed; inset: 0; z-index: 50;
     display: flex; align-items: center; justify-content: center;
+    background: rgba(8,12,20,0.7);
+    opacity: 0; pointer-events: none; transition: opacity 0.3s;
   }
-  .orb {
-    width: 150px; height: 150px;
-    border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-    background: radial-gradient(circle at 38% 38%, #34d399, #22c55e 50%, #15803d);
-    box-shadow: 0 0 50px var(--kush-glow), 0 0 100px rgba(34,197,94,0.08), inset 0 0 30px rgba(255,255,255,0.05);
-    transition: transform 0.08s, box-shadow 0.08s;
-    animation: breathe 4s ease-in-out infinite;
-    position: relative;
-    z-index: 1;
+  .evo-overlay.show { opacity: 1; pointer-events: auto; }
+  .evo-card {
+    text-align: center; padding: 32px;
+    font-family: 'Chakra Petch',sans-serif;
   }
-  .orb:active, .orb.clicked {
-    transform: scale(0.91);
-    box-shadow: 0 0 70px var(--kush-glow), 0 0 120px rgba(34,197,94,0.15), inset 0 0 40px rgba(255,255,255,0.1);
-  }
-  .orb-emoji { font-size: 60px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); pointer-events: none; }
-  .orb-ring {
-    position: absolute; inset: -12px;
-    border-radius: 50%;
-    border: 1px solid rgba(34,197,94,0.15);
-    animation: breathe 4s ease-in-out infinite reverse;
-    pointer-events: none;
-  }
-  @keyframes breathe {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.04); }
-  }
-
-  .click-stats {
-    margin-top: 12px;
-    font-size: 13px; color: var(--ash);
-    font-variant-numeric: tabular-nums;
-    display: flex; gap: 12px;
-  }
-  .click-stats span { white-space: nowrap; }
-  .stat-val { color: var(--cloud-dim); font-weight: 500; }
-  .flavor {
-    margin-top: 6px;
-    font-size: 12px; color: var(--ash);
-    font-style: italic; opacity: 0.7;
-    text-align: center;
-    min-height: 1.4em;
-  }
-
-  /* === FLOATERS === */
-  .floater {
-    position: absolute;
-    color: var(--gold);
-    font-family: var(--display);
-    font-weight: 700; font-size: 17px;
-    pointer-events: none;
-    animation: float-up 0.75s ease-out forwards;
-    text-shadow: 0 0 10px var(--gold-glow);
-    z-index: 10;
-    white-space: nowrap;
-  }
-  @keyframes float-up {
-    0% { transform: translateY(0) scale(1); opacity: 1; }
-    100% { transform: translateY(-55px) scale(0.8); opacity: 0; }
-  }
-
-  /* === TABS === */
-  .tabs {
-    display: flex; gap: 2px;
-    flex-shrink: 0;
-    background: var(--smoke);
-    border-radius: 10px;
-    padding: 3px;
-    margin-bottom: 8px;
-  }
-  .tab {
-    flex: 1;
-    padding: 8px 4px;
-    border: none; border-radius: 8px;
-    background: transparent;
-    color: var(--ash);
-    font-family: var(--display);
-    font-weight: 600; font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex; align-items: center; justify-content: center; gap: 5px;
-    white-space: nowrap;
-    position: relative;
-  }
-  .tab:hover { color: var(--cloud-dim); }
-  .tab.active[data-track="flower"] { background: var(--kush-dim); color: var(--kush); }
-  .tab.active[data-track="pen"] { background: var(--purp-dim); color: var(--purp); }
-  .tab.active[data-track="nic"] { background: var(--cherry-dim); color: var(--cherry); }
-  .tab.locked { opacity: 0.4; cursor: default; }
-  .tab .lock { font-size: 11px; }
-
-  /* === SHOP === */
-  .shop-wrap {
-    flex: 1 1 0;
-    overflow-y: auto;
-    padding-bottom: 16px;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
-    scrollbar-color: var(--haze) transparent;
-  }
-  .shop-wrap::-webkit-scrollbar { width: 4px; }
-  .shop-wrap::-webkit-scrollbar-thumb { background: var(--haze); border-radius: 2px; }
-  .shop-wrap::-webkit-scrollbar-track { background: transparent; }
-
-  .locked-msg {
-    text-align: center; padding: 40px 20px;
-    color: var(--ash);
-  }
-  .locked-msg .lock-icon { font-size: 36px; margin-bottom: 12px; }
-  .locked-msg .lock-text { font-size: 13px; line-height: 1.5; }
-  .locked-msg .lock-req {
-    font-family: var(--display); font-weight: 600;
-    margin-top: 8px; font-size: 14px;
-  }
-
-  .producer {
-    display: flex; align-items: center; gap: 10px;
-    padding: 10px 12px;
-    background: var(--smoke);
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    margin-bottom: 6px;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  .producer.can-afford { border-color: var(--track-accent); }
-  .producer.just-bought { background: var(--track-dim); }
-  .producer .p-icon { font-size: 26px; width: 36px; text-align: center; flex-shrink: 0; }
-  .producer .p-info { flex: 1; min-width: 0; }
-  .producer .p-name {
-    font-family: var(--display); font-weight: 600; font-size: 13px;
-    display: flex; align-items: center; gap: 6px;
-  }
-  .producer .p-count {
-    font-size: 12px; color: var(--ash); font-weight: 400;
-    font-variant-numeric: tabular-nums;
-  }
-  .producer .p-desc { font-size: 11px; color: var(--ash); margin-top: 1px; }
-  .producer .p-rate {
-    font-size: 11px; color: var(--track-accent);
-    font-variant-numeric: tabular-nums;
-    margin-top: 2px;
-  }
-  .buy-btn {
-    flex-shrink: 0;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--haze);
-    color: var(--ash);
-    font-family: var(--display);
-    font-weight: 600; font-size: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-  }
-  .can-afford .buy-btn {
-    background: var(--track-accent);
-    color: var(--void);
-    border-color: var(--track-accent);
-  }
-  .can-afford .buy-btn:active { transform: scale(0.94); }
-
-  /* === WELCOME BACK === */
-  .overlay { position: fixed; inset: 0; background: rgba(11,15,26,0.85); display: flex; align-items: center; justify-content: center; z-index: 100; }
-  .wb-card {
-    background: var(--smoke); border: 1px solid var(--border);
-    border-radius: 16px; padding: 32px; text-align: center;
-    max-width: 300px; width: 90%;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  }
-  .wb-card .wb-icon { font-size: 48px; margin-bottom: 12px; }
-  .wb-card h2 { font-family: var(--display); font-size: 20px; margin: 0 0 8px; }
-  .wb-card p { color: var(--ash); font-size: 14px; margin: 0 0 20px; line-height: 1.5; }
-  .wb-card .wb-amount { color: var(--gold); font-family: var(--display); font-weight: 700; }
-  .wb-btn {
-    padding: 10px 28px;
-    background: var(--kush); color: var(--void);
-    border: none; border-radius: 10px;
-    font-family: var(--display); font-weight: 700; font-size: 14px;
-    cursor: pointer; transition: transform 0.1s;
-  }
-  .wb-btn:active { transform: scale(0.95); }
-
-  /* Track-specific accent */
-  [data-active-track="flower"] { --track-accent: var(--kush); --track-dim: var(--kush-dim); }
-  [data-active-track="pen"] { --track-accent: var(--purp); --track-dim: var(--purp-dim); }
-  [data-active-track="nic"] { --track-accent: var(--cherry); --track-dim: var(--cherry-dim); }
-
-  @media (max-width: 380px) {
-    .orb { width: 120px; height: 120px; }
-    .orb-emoji { font-size: 48px; }
-    .orb-ring { inset: -8px; }
-    .click-zone { padding: 14px 0 8px; }
-    .tab { font-size: 12px; padding: 7px 2px; }
-  }
-  @media (min-height: 750px) {
-    .click-zone { padding: 28px 0 16px; }
-  }
+  .evo-icon { font-size: 72px; animation: evo-pulse 0.6s ease-in-out infinite alternate; }
+  @keyframes evo-pulse { from{transform:scale(1)} to{transform:scale(1.15)} }
+  .evo-label { font-size: 13px; color: #fbbf24; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 12px; }
+  .evo-name { font-size: 28px; font-weight: 700; color: #e2e8f0; margin-top: 4px; text-shadow: 0 0 20px rgba(251,191,36,0.3); }
+  .evo-flavor { font-family: 'DM Sans',sans-serif; font-size: 13px; color: #94a3b8; margin-top: 8px; font-style: italic; }
 </style>
 
-<div id="app" data-active-track="flower">
-  <header>
-    <div class="rank-badge">
-      <span class="icon" id="r-icon">🌱</span>
-      <span id="r-name">Seed</span>
-    </div>
-    <div class="clouds-display">
-      <div class="amount" id="c-amount">0</div>
-      <div class="label">clouds</div>
-    </div>
-  </header>
+<canvas id="game"></canvas>
 
-  <div class="progress-wrap">
-    <div class="progress-track"><div class="progress-fill" id="p-fill"></div></div>
-    <span class="progress-label" id="p-label">Next: 🌿 Nug (100)</span>
+<div id="hud">
+  <div class="hud-row">
+    <div class="hud-rank" id="h-rank">🌱 Seed</div>
+    <div class="hud-clouds" id="h-clouds">0 ☁️</div>
   </div>
-
-  <div class="click-zone" id="click-zone">
-    <div class="orb-wrap">
-      <div class="orb-ring"></div>
-      <div class="orb" id="orb" role="button" aria-label="Click to earn clouds" tabindex="0">
-        <span class="orb-emoji" id="orb-emoji">🌱</span>
-      </div>
-    </div>
-    <div class="click-stats">
-      <span><span class="stat-val" id="s-click">+1</span>/click</span>
-      <span><span class="stat-val" id="s-sec">0</span>/sec</span>
-    </div>
-    <div class="flavor" id="flavor">Plant the seed. Start the grind.</div>
-  </div>
-
-  <nav class="tabs" id="tabs">
-    <button class="tab active" data-track="flower">🌿 Flower</button>
-    <button class="tab locked" data-track="pen">💨 Pens <span class="lock">🔒</span></button>
-    <button class="tab locked" data-track="nic">🔋 Nic <span class="lock">🔒</span></button>
-  </nav>
-
-  <div class="shop-wrap" id="shop"></div>
+  <div class="hud-bar-wrap"><div class="hud-bar" id="h-bar"></div></div>
+  <div class="hud-next" id="h-next">Next: 🌿 Nug (100)</div>
 </div>
+<div class="hud-zone" id="h-zone"></div>
+<div class="hud-hint" id="h-hint"></div>
 
-<div class="overlay" id="welcome" hidden>
-  <div class="wb-card">
-    <div class="wb-icon">💨</div>
-    <h2>Welcome back</h2>
-    <p>You earned <span class="wb-amount" id="wb-amount">0</span> clouds while you were gone</p>
-    <button class="wb-btn" id="wb-ok">Let's grind</button>
+<div class="evo-overlay" id="evo">
+  <div class="evo-card">
+    <div class="evo-icon" id="evo-icon">🌿</div>
+    <div class="evo-label">EVOLVED</div>
+    <div class="evo-name" id="evo-name">Nug</div>
+    <div class="evo-flavor" id="evo-flavor"></div>
   </div>
 </div>
 
 <script>
+// ========= CONSTANTS =========
 const RANKS = [
-  { name: 'Seed',    icon: '🌱', at: 0,         flavor: 'Plant the seed. Start the grind.' },
-  { name: 'Nug',     icon: '🌿', at: 100,       flavor: 'Got a lil something. Keep stacking.' },
-  { name: 'Dime',    icon: '💰', at: 1e3,       flavor: 'Bag secured. Moving weight.' },
-  { name: 'Gram',    icon: '🍃', at: 5e3,       flavor: 'Now we\'re talking. Full g energy.' },
-  { name: 'Eighth',  icon: '🌲', at: 25e3,      flavor: 'Proper weight. Eighth of gas.' },
-  { name: 'Quarter', icon: '⚖️', at: 100e3,     flavor: 'Quarter pack. Certified plugged in.' },
-  { name: 'Half O',  icon: '🏔️', at: 500e3,     flavor: 'Heavy hitter. Half zip loaded.' },
-  { name: 'Zip',     icon: '👑', at: 2e6,       flavor: 'Full pack. Running the block.' },
-  { name: 'QP',      icon: '💎', at: 10e6,      flavor: 'Supplier status. QP on deck.' },
-  { name: 'Elbow',   icon: '🔥', at: 50e6,      flavor: 'Legendary. A whole elbow.' },
+  { name:'Seed',    icon:'🌱', at:0,       flavor:'Plant the seed. Start the grind.' },
+  { name:'Nug',     icon:'🌿', at:100,     flavor:'Got a lil something. Keep stacking.' },
+  { name:'Dime',    icon:'💰', at:1e3,     flavor:'Bag secured. Moving weight.' },
+  { name:'Gram',    icon:'🍃', at:5e3,     flavor:'Full g energy. Unlocked the Lounge.' },
+  { name:'Eighth',  icon:'🌲', at:25e3,    flavor:'Proper weight. The Dispo is open.' },
+  { name:'Quarter', icon:'⚖️', at:100e3,   flavor:'Quarter pack. Certified plugged in.' },
+  { name:'Half O',  icon:'🏔️', at:500e3,   flavor:'Heavy hitter. Half zip loaded.' },
+  { name:'Zip',     icon:'👑', at:2e6,     flavor:'Full pack. The Stash is unlocked.' },
+  { name:'QP',      icon:'💎', at:10e6,    flavor:'Supplier status. QP on deck.' },
+  { name:'Elbow',   icon:'🔥', at:50e6,    flavor:'Legendary. A whole elbow.' },
 ];
 
-const PRODUCERS = [
-  // Flower
-  { id:'nug',     name:'Nug',         track:'flower', icon:'🌿', cost:15,       rate:0.2,   desc:'A little nugget of gas' },
-  { id:'dime',    name:'Dime Bag',    track:'flower', icon:'💰', cost:100,      rate:1,     desc:'Half a g in the baggy' },
-  { id:'gram',    name:'Gram',        track:'flower', icon:'🍃', cost:500,      rate:5,     desc:'A full g of pressure' },
-  { id:'eighth',  name:'Eighth',      track:'flower', icon:'🌲', cost:3e3,     rate:25,    desc:'3.5g of top shelf' },
-  { id:'quarter', name:'Quarter',     track:'flower', icon:'⚖️', cost:15e3,    rate:100,   desc:'7g heavy hitter' },
-  { id:'half',    name:'Half Zip',    track:'flower', icon:'🏔️', cost:75e3,    rate:400,   desc:'14g of exotic' },
-  { id:'zip',     name:'Zip',         track:'flower', icon:'👑', cost:400e3,   rate:1800,  desc:'28g full pack' },
-  // Pens — ranked bottom to top
-  { id:'pacman',  name:'Pac Man\'s',  track:'pen',    icon:'👾', cost:50e3,    rate:200,   desc:'Entry level dispo' },
-  { id:'wholemlt',name:'Whole Melts', track:'pen',    icon:'🫠', cost:150e3,   rate:600,   desc:'Full melt dispo hits' },
-  { id:'cake',    name:'Cake Bars',   track:'pen',    icon:'🎂', cost:500e3,   rate:2e3,   desc:'Cake She Hits Different' },
-  { id:'hexfuel', name:'Hex Fueles',  track:'pen',    icon:'⬡',  cost:2e6,     rate:7e3,   desc:'Fueled up, hexed out' },
-  { id:'aces',    name:'Aces',        track:'pen',    icon:'🃏', cost:8e6,     rate:25e3,  desc:'Ace in the hole' },
-  { id:'muha',    name:'Muha Meds',   track:'pen',    icon:'👑', cost:30e6,    rate:80e3,  desc:'Habibi, top shelf only' },
-  // Nic
-  { id:'elfbar',  name:'Elf Bar',     track:'nic',    icon:'🫧', cost:80e3,    rate:350,   desc:'5000 puffs of clouds' },
-  { id:'lost',    name:'Lost Mary',   track:'nic',    icon:'🌀', cost:400e3,   rate:1800,  desc:'Smooth flavor clouds' },
-  { id:'geek',    name:'Geek Bar',    track:'nic',    icon:'⚡', cost:2e6,     rate:7e3,   desc:'Mega puff beast mode' },
-  { id:'flum',    name:'Flum Float',  track:'nic',    icon:'☁️', cost:10e6,    rate:30e3,  desc:'The cloud machine' },
-  { id:'puffco',  name:'Puffco',      track:'nic',    icon:'🔥', cost:50e6,    rate:130e3, desc:'The Peak. Final form.' },
+const WW = 2400, WH = 2400;
+const ZONES = [
+  { id:'block',  name:'The Block',   x:0,    y:0,    w:1200, h:1200, ground:'#0c1a0e', accent:'#22c55e', grid:'rgba(34,197,94,0.04)',  reqRank:0 },
+  { id:'dispo',  name:'The Dispo',   x:1200, y:0,    w:1200, h:1200, ground:'#120c1a', accent:'#a855f7', grid:'rgba(168,85,247,0.04)', reqRank:4 },
+  { id:'lounge', name:'The Lounge',  x:0,    y:1200, w:1200, h:1200, ground:'#1a0c10', accent:'#f43f5e', grid:'rgba(244,63,94,0.04)',  reqRank:3 },
+  { id:'stash',  name:'The Stash',   x:1200, y:1200, w:1200, h:1200, ground:'#1a160c', accent:'#fbbf24', grid:'rgba(251,191,36,0.04)', reqRank:7 },
 ];
 
-const TRACK_UNLOCK = { flower: 0, pen: 25e3, nic: 5e3 };
-const TRACK_LABELS = { flower:'Flower', pen:'Pens', nic:'Nic' };
-const COST_MULT = 1.15;
-const SAVE_KEY = 'za_grind_v1';
-
-let state = { clouds:0, total:0, prods:{}, tab:'flower', lastTick:Date.now() };
-let prevRankIdx = 0;
-
-// --- Utility ---
-function fmt(n) {
-  if (n < 0) return '-' + fmt(-n);
-  if (n >= 1e12) return (n/1e12).toFixed(1)+'T';
-  if (n >= 1e9)  return (n/1e9).toFixed(1)+'B';
-  if (n >= 1e6)  return (n/1e6).toFixed(1)+'M';
-  if (n >= 1e3)  return (n/1e3).toFixed(1)+'K';
-  if (n < 10 && n % 1 !== 0) return n.toFixed(1);
-  return Math.floor(n).toLocaleString();
-}
-function prodCost(p) { return Math.floor(p.cost * Math.pow(COST_MULT, state.prods[p.id]||0)); }
-function totalOwned() { let s=0; for(const k in state.prods) s+=state.prods[k]; return s; }
-function clickPow() { return 1 + Math.floor(totalOwned()/8); }
-function cps() { let s=0; for(const p of PRODUCERS) s += p.rate*(state.prods[p.id]||0); return s; }
-function rankIdx() { let i=0; for(let r=0;r<RANKS.length;r++) if(state.total>=RANKS[r].at) i=r; return i; }
-function rankProgress() {
-  const i=rankIdx(), cur=RANKS[i], nxt=RANKS[i+1];
-  if(!nxt) return 1;
-  return Math.min((state.total-cur.at)/(nxt.at-cur.at),1);
-}
-function trackUnlocked(t) { return state.total >= TRACK_UNLOCK[t]; }
-
-// --- DOM refs ---
-const $ = id => document.getElementById(id);
-const orbEl=$('orb'), shopEl=$('shop'), clickZone=$('click-zone');
-
-// --- Save/Load ---
-function save() {
-  state.lastTick = Date.now();
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){}
-}
-// Migrate old producer IDs to new ones so saved progress carries over
-const ID_MIGRATION = {
-  halfcart:'pacman', fullcart:'wholemlt', liveres:'cake',
-  diamond:'hexfuel', dispo:'aces', hyde:'puffco'
+const ZONE_ITEMS = {
+  block:  [{icon:'🌿',name:'Nug',val:3},{icon:'💰',name:'Dime Bag',val:5},{icon:'🍃',name:'Gram',val:8}],
+  dispo:  [{icon:'👾',name:"Pac Man's",val:15},{icon:'🫠',name:'Whole Melts',val:20},{icon:'🎂',name:'Cake Bar',val:30},{icon:'⬡',name:'Hex Fuel',val:45},{icon:'🃏',name:'Aces',val:60},{icon:'👑',name:'Muha Meds',val:100}],
+  lounge: [{icon:'🫧',name:'Elf Bar',val:15},{icon:'🌀',name:'Lost Mary',val:25},{icon:'⚡',name:'Geek Bar',val:40},{icon:'☁️',name:'Flum Float',val:60},{icon:'🔥',name:'Puffco',val:100}],
+  stash:  [{icon:'💎',name:'Diamond Stash',val:200},{icon:'🏆',name:'Trophy Pack',val:500}],
 };
-function migrateProds(prods) {
-  const out = {};
-  for(const k in prods) {
-    const nk = ID_MIGRATION[k] || k;
-    out[nk] = (out[nk]||0) + prods[k];
+
+// ========= STATE =========
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const SAVE_KEY = 'za_grind_v2';
+
+let S = {
+  clouds: 0, total: 0, rank: 0,
+  px: 600, py: 600, // player position (center of The Block)
+  lastTick: Date.now(),
+};
+let cam = { x: 0, y: 0 };
+let curZone = ZONES[0], prevZoneId = 'block';
+let items = [], hazards = [], spots = [], floaters = [], particles = [];
+let keys = { up:0, down:0, left:0, right:0, dash:0 };
+let touch = { active:false, sx:0, sy:0, dx:0, dy:0 };
+let dashCooldown = 0, dashTimer = 0, invTimer = 0;
+let evoTimer = 0, hintTimer = 8;
+let zoneBanner = { text:'', color:'', timer:0 };
+let time = 0, saveTimer = 0;
+let isMobile = 'ontouchstart' in window;
+
+// ========= HELPERS =========
+function fmt(n) {
+  if(n>=1e12) return (n/1e12).toFixed(1)+'T';
+  if(n>=1e9)  return (n/1e9).toFixed(1)+'B';
+  if(n>=1e6)  return (n/1e6).toFixed(1)+'M';
+  if(n>=1e3)  return (n/1e3).toFixed(1)+'K';
+  return Math.floor(n).toString();
+}
+function dist(a,b) { return Math.hypot(a.x-b.x, a.y-b.y); }
+function rnd(lo,hi) { return lo + Math.random()*(hi-lo); }
+function getZone(x,y) { return ZONES.find(z => x>=z.x && x<z.x+z.w && y>=z.y && y<z.y+z.h) || null; }
+function zoneOpen(z) { return S.rank >= z.reqRank; }
+function playerSpeed() { return 155 + S.rank * 18 + (dashTimer > 0 ? 200 : 0); }
+function collectRadius() { return 22 + S.rank * 2; }
+
+// ========= WORLD GEN =========
+function genWorld() {
+  items.length = 0; hazards.length = 0; spots.length = 0;
+  for (const z of ZONES) {
+    const pad = 60;
+    const rx = () => rnd(z.x+pad, z.x+z.w-pad);
+    const ry = () => rnd(z.y+pad, z.y+z.h-pad);
+    // Clouds
+    for(let i=0;i<40;i++) items.push({ x:rx(), y:ry(), emoji:'☁️', val:1, zone:z.id, type:'cloud', gone:0 });
+    // Smoke
+    for(let i=0;i<15;i++) items.push({ x:rx(), y:ry(), emoji:'💨', val:5, zone:z.id, type:'smoke', gone:0 });
+    // Stars
+    for(let i=0;i<5;i++) items.push({ x:rx(), y:ry(), emoji:'⭐', val:25, zone:z.id, type:'star', gone:0 });
+    // Premium zone items
+    const premiums = ZONE_ITEMS[z.id] || [];
+    for(const p of premiums) {
+      for(let i=0;i<2;i++) items.push({ x:rx(), y:ry(), emoji:p.icon, val:p.val, zone:z.id, type:'premium', name:p.name, gone:0 });
+    }
+    // Smoke spots (passive earn zones)
+    for(let i=0;i<3;i++) spots.push({ x:rx(), y:ry(), r:55, zone:z.id, accent:z.accent });
+    // Hazards
+    for(let i=0;i<4;i++) {
+      const hx=rx(), hy=ry();
+      hazards.push({ x:hx, y:hy, ox:hx, oy:hy, r:18, dir:Math.random()<0.5?'h':'v', range:rnd(80,160), spd:rnd(30,70), phase:rnd(0,6.28), zone:z.id });
+    }
   }
-  return out;
+}
+
+// ========= INPUT =========
+window.addEventListener('keydown', e => {
+  if(e.key==='ArrowUp'||e.key==='w'||e.key==='W') keys.up=1;
+  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') keys.down=1;
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keys.left=1;
+  if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') keys.right=1;
+  if(e.key===' '||e.key==='Shift') { keys.dash=1; tryDash(); }
+});
+window.addEventListener('keyup', e => {
+  if(e.key==='ArrowUp'||e.key==='w'||e.key==='W') keys.up=0;
+  if(e.key==='ArrowDown'||e.key==='s'||e.key==='S') keys.down=0;
+  if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A') keys.left=0;
+  if(e.key==='ArrowRight'||e.key==='d'||e.key==='D') keys.right=0;
+  if(e.key===' '||e.key==='Shift') keys.dash=0;
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  touch.active = true;
+  touch.sx = t.clientX; touch.sy = t.clientY;
+  touch.dx = 0; touch.dy = 0;
+  if (e.touches.length > 1) tryDash();
+});
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if(!touch.active) return;
+  const t = e.touches[0];
+  touch.dx = t.clientX - touch.sx;
+  touch.dy = t.clientY - touch.sy;
+  const d = Math.hypot(touch.dx, touch.dy);
+  const max = 60;
+  if(d > max) { touch.dx = touch.dx/d*max; touch.dy = touch.dy/d*max; }
+});
+canvas.addEventListener('touchend', e => {
+  if(e.touches.length === 0) { touch.active = false; touch.dx = 0; touch.dy = 0; }
+});
+
+function tryDash() { if(dashCooldown <= 0) { dashTimer = 0.25; dashCooldown = 1.5; } }
+
+// ========= UPDATE =========
+function update(dt) {
+  time += dt;
+  if(dashTimer > 0) dashTimer -= dt;
+  if(dashCooldown > 0) dashCooldown -= dt;
+  if(invTimer > 0) invTimer -= dt;
+  if(evoTimer > 0) { evoTimer -= dt; if(evoTimer <= 0) document.getElementById('evo').classList.remove('show'); return; }
+  if(zoneBanner.timer > 0) zoneBanner.timer -= dt;
+  if(hintTimer > 0) hintTimer -= dt;
+  if(hintTimer <= 0 && hintTimer > -1) { document.getElementById('h-hint').classList.add('hidden'); hintTimer = -1; }
+  saveTimer -= dt;
+  if(saveTimer <= 0) { save(); saveTimer = 15; }
+
+  // Movement
+  let mx = keys.right - keys.left;
+  let my = keys.down - keys.up;
+  if(touch.active) {
+    const d = Math.hypot(touch.dx, touch.dy);
+    if(d > 8) { mx = touch.dx/d; my = touch.dy/d; }
+  }
+  const len = Math.hypot(mx, my);
+  if(len > 0) {
+    const spd = playerSpeed() * dt;
+    let nx = S.px + (mx/len) * spd;
+    let ny = S.py + (my/len) * spd;
+    // World bounds
+    nx = Math.max(20, Math.min(WW-20, nx));
+    ny = Math.max(20, Math.min(WH-20, ny));
+    // Zone lock check
+    const nz = getZone(nx, ny);
+    if(nz && !zoneOpen(nz)) {
+      // Push back — allow movement along the border
+      const cz = getZone(S.px, S.py);
+      const nzx = getZone(nx, S.py);
+      const nzy = getZone(S.px, ny);
+      if(nzx && zoneOpen(nzx)) S.px = nx;
+      if(nzy && zoneOpen(nzy)) S.py = ny;
+      if(!zoneBanner.timer || zoneBanner.timer <= 0) {
+        zoneBanner.text = '🔒 ' + nz.name + ' — reach ' + RANKS[nz.reqRank].icon + ' ' + RANKS[nz.reqRank].name;
+        zoneBanner.color = nz.accent;
+        zoneBanner.timer = 1.5;
+      }
+    } else {
+      S.px = nx; S.py = ny;
+    }
+    // Dash trail particles
+    if(dashTimer > 0 && Math.random() < 0.6) {
+      particles.push({ x:S.px+rnd(-8,8), y:S.py+rnd(-8,8), vx:rnd(-30,30), vy:rnd(-30,30), life:0.4, color:curZone.accent });
+    }
+  }
+
+  // Camera
+  cam.x += (S.px - cam.x - canvas.width/2) * Math.min(dt*5, 1);
+  cam.y += (S.py - cam.y - canvas.height/2) * Math.min(dt*5, 1);
+
+  // Zone detection
+  const z = getZone(S.px, S.py);
+  if(z && z.id !== prevZoneId) {
+    curZone = z; prevZoneId = z.id;
+    showZoneBanner(z.name, z.accent);
+  }
+
+  // Collect items
+  const cr = collectRadius();
+  for(const it of items) {
+    if(it.gone) continue;
+    if(!zoneOpen(ZONES.find(z=>z.id===it.zone))) continue;
+    if(dist({x:S.px,y:S.py}, it) < cr) {
+      it.gone = Date.now();
+      S.clouds += it.val;
+      S.total += it.val;
+      const label = it.name ? it.name+' +'+fmt(it.val) : '+'+fmt(it.val);
+      floaters.push({ x:it.x, y:it.y, text:label, color: it.type==='premium'?curZone.accent:'#fbbf24', t:0 });
+      // Burst particles
+      for(let i=0;i<5;i++) particles.push({ x:it.x, y:it.y, vx:rnd(-60,60), vy:rnd(-60,60), life:0.35, color:'#fbbf24' });
+      checkRank();
+    }
+  }
+  // Respawn items
+  const now = Date.now();
+  for(const it of items) {
+    if(it.gone && now - it.gone > (it.type==='premium'?8000:it.type==='star'?5000:2500)) {
+      it.gone = 0;
+      // Reposition within zone
+      const z = ZONES.find(z=>z.id===it.zone);
+      if(z) { it.x = rnd(z.x+60,z.x+z.w-60); it.y = rnd(z.y+60,z.y+z.h-60); }
+    }
+  }
+
+  // Smoke spots (passive earn)
+  for(const sp of spots) {
+    if(!zoneOpen(ZONES.find(z=>z.id===sp.zone))) continue;
+    if(dist({x:S.px,y:S.py},{x:sp.x,y:sp.y}) < sp.r) {
+      const earn = (2 + S.rank * 0.5) * dt;
+      S.clouds += earn; S.total += earn;
+      if(Math.random() < dt * 2) floaters.push({ x:sp.x+rnd(-20,20), y:sp.y-20, text:'+'+fmt(earn*5), color:sp.accent, t:0 });
+    }
+  }
+
+  // Hazards
+  for(const h of hazards) {
+    if(!zoneOpen(ZONES.find(z=>z.id===h.zone))) continue;
+    if(h.dir==='h') h.x = h.ox + Math.sin(time*h.spd/50+h.phase)*h.range;
+    else h.y = h.oy + Math.sin(time*h.spd/50+h.phase)*h.range;
+    if(invTimer <= 0 && dist({x:S.px,y:S.py},h) < h.r + 14) {
+      const loss = Math.max(5, Math.floor(S.clouds * 0.08));
+      S.clouds = Math.max(0, S.clouds - loss);
+      invTimer = 1.5;
+      floaters.push({ x:S.px, y:S.py-20, text:'-'+fmt(loss), color:'#f43f5e', t:0 });
+      for(let i=0;i<8;i++) particles.push({ x:S.px, y:S.py, vx:rnd(-80,80), vy:rnd(-80,80), life:0.4, color:'#f43f5e' });
+    }
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--) {
+    const p = particles[i];
+    p.x += p.vx*dt; p.y += p.vy*dt; p.life -= dt;
+    if(p.life <= 0) particles.splice(i,1);
+  }
+  // Floaters
+  for(let i=floaters.length-1;i>=0;i--) {
+    floaters[i].t += dt;
+    if(floaters[i].t > 0.8) floaters.splice(i,1);
+  }
+
+  updateHUD();
+}
+
+function checkRank() {
+  let newRank = 0;
+  for(let r=0;r<RANKS.length;r++) if(S.total>=RANKS[r].at) newRank = r;
+  if(newRank > S.rank) {
+    S.rank = newRank;
+    triggerEvolution();
+  }
+}
+function triggerEvolution() {
+  const r = RANKS[S.rank];
+  document.getElementById('evo-icon').textContent = r.icon;
+  document.getElementById('evo-name').textContent = r.name;
+  document.getElementById('evo-flavor').textContent = r.flavor;
+  document.getElementById('evo').classList.add('show');
+  evoTimer = 2;
+  for(let i=0;i<25;i++) particles.push({ x:S.px, y:S.py, vx:rnd(-120,120), vy:rnd(-120,120), life:rnd(0.5,1), color:'#fbbf24' });
+  save();
+}
+
+// ========= RENDER =========
+function render() {
+  canvas.width = window.innerWidth * devicePixelRatio;
+  canvas.height = window.innerHeight * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  const W = window.innerWidth, H = window.innerHeight;
+
+  // Clamp camera
+  cam.x = Math.max(0, Math.min(WW - W, cam.x));
+  cam.y = Math.max(0, Math.min(WH - H, cam.y));
+
+  ctx.clearRect(0,0,W,H);
+
+  // Draw zones
+  for(const z of ZONES) {
+    const sx = z.x-cam.x, sy = z.y-cam.y;
+    if(sx+z.w<0||sx>W||sy+z.h<0||sy>H) continue;
+    // Ground
+    ctx.fillStyle = zoneOpen(z) ? z.ground : '#060810';
+    ctx.fillRect(sx,sy,z.w,z.h);
+    // Grid
+    if(zoneOpen(z)) {
+      ctx.strokeStyle = z.grid;
+      ctx.lineWidth = 1;
+      const gs = 80;
+      const x0 = Math.max(0, Math.floor((cam.x-z.x)/gs)*gs);
+      const y0 = Math.max(0, Math.floor((cam.y-z.y)/gs)*gs);
+      for(let gx=x0; gx<z.w && z.x+gx-cam.x<W; gx+=gs) {
+        const lx = z.x+gx-cam.x;
+        if(lx>=sx && lx<=sx+z.w) { ctx.beginPath(); ctx.moveTo(lx,Math.max(sy,0)); ctx.lineTo(lx,Math.min(sy+z.h,H)); ctx.stroke(); }
+      }
+      for(let gy=y0; gy<z.h && z.y+gy-cam.y<H; gy+=gs) {
+        const ly = z.y+gy-cam.y;
+        if(ly>=sy && ly<=sy+z.h) { ctx.beginPath(); ctx.moveTo(Math.max(sx,0),ly); ctx.lineTo(Math.min(sx+z.w,W),ly); ctx.stroke(); }
+      }
+    }
+    // Lock overlay for closed zones
+    if(!zoneOpen(z)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(sx,sy,z.w,z.h);
+    }
+  }
+
+  // Zone borders
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 2;
+  for(const z of ZONES) {
+    ctx.strokeRect(z.x-cam.x, z.y-cam.y, z.w, z.h);
+  }
+
+  // Smoke spots
+  for(const sp of spots) {
+    if(!zoneOpen(ZONES.find(z=>z.id===sp.zone))) continue;
+    const sx=sp.x-cam.x, sy=sp.y-cam.y;
+    if(sx+sp.r<0||sx-sp.r>W||sy+sp.r<0||sy-sp.r>H) continue;
+    const inSpot = dist({x:S.px,y:S.py},{x:sp.x,y:sp.y}) < sp.r;
+    const grad = ctx.createRadialGradient(sx,sy,0,sx,sy,sp.r);
+    const alpha = inSpot ? 0.18 : 0.08;
+    grad.addColorStop(0, sp.accent + (inSpot?'40':'20'));
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(sx,sy,sp.r,0,Math.PI*2); ctx.fill();
+    // Ring
+    ctx.strokeStyle = sp.accent + (inSpot?'50':'18');
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(sx,sy,sp.r,0,Math.PI*2); ctx.stroke();
+    // Label
+    if(inSpot) {
+      ctx.font = '600 10px "Chakra Petch",sans-serif';
+      ctx.fillStyle = sp.accent + '90';
+      ctx.textAlign = 'center';
+      ctx.fillText('SMOKE SPOT', sx, sy+sp.r+14);
+    }
+  }
+
+  // Collectibles
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for(const it of items) {
+    if(it.gone) continue;
+    if(!zoneOpen(ZONES.find(z=>z.id===it.zone))) continue;
+    const sx=it.x-cam.x, sy=it.y-cam.y;
+    if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
+    const bob = Math.sin(time*2.5+it.x*0.01+it.y*0.01)*3;
+    const sz = it.type==='premium' ? 22 : it.type==='star' ? 18 : 16;
+    ctx.font = sz+'px serif';
+    ctx.fillText(it.emoji, sx, sy+bob);
+  }
+
+  // Hazards
+  for(const h of hazards) {
+    if(!zoneOpen(ZONES.find(z=>z.id===h.zone))) continue;
+    const sx=h.x-cam.x, sy=h.y-cam.y;
+    if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
+    const pulse = 1 + Math.sin(time*4)*0.15;
+    ctx.beginPath();
+    ctx.arc(sx, sy, h.r*pulse, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(239,68,68,0.2)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(239,68,68,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.font = '14px serif';
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('🚫', sx, sy);
+  }
+
+  // Particles
+  for(const p of particles) {
+    const sx=p.x-cam.x, sy=p.y-cam.y;
+    ctx.globalAlpha = Math.max(0, p.life/0.4);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(sx,sy,3,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Player
+  const px = S.px-cam.x, py = S.py-cam.y;
+  // Glow
+  const gr = ctx.createRadialGradient(px,py,0,px,py,35+S.rank*3);
+  gr.addColorStop(0, (curZone?.accent||'#22c55e') + '30');
+  gr.addColorStop(1, 'transparent');
+  ctx.fillStyle = gr;
+  ctx.beginPath(); ctx.arc(px,py,35+S.rank*3,0,Math.PI*2); ctx.fill();
+  // Blink when invincible
+  if(invTimer > 0 && Math.floor(time*10)%2===0) { /* skip drawing */ }
+  else {
+    const psz = 28 + S.rank * 2;
+    ctx.font = psz+'px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(RANKS[S.rank].icon, px, py);
+  }
+  // Direction indicator
+  if(len > 0 || touch.active) {
+    let dx = keys.right-keys.left, dy = keys.down-keys.up;
+    if(touch.active && Math.hypot(touch.dx,touch.dy)>8) { dx=touch.dx; dy=touch.dy; }
+    const dl = Math.hypot(dx,dy);
+    if(dl>0) {
+      const ax = px + (dx/dl)*22, ay = py + (dy/dl)*22;
+      ctx.fillStyle = (curZone?.accent||'#22c55e') + '60';
+      ctx.beginPath(); ctx.arc(ax,ay,3,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Floaters
+  ctx.font = '600 14px "Chakra Petch",sans-serif';
+  ctx.textAlign = 'center';
+  for(const f of floaters) {
+    const sx=f.x-cam.x, sy=f.y-cam.y - f.t*50;
+    ctx.globalAlpha = Math.max(0, 1-f.t/0.8);
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, sx, sy);
+  }
+  ctx.globalAlpha = 1;
+
+  // Touch joystick
+  if(touch.active && isMobile) {
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(touch.sx, touch.sy, 50, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(touch.sx+touch.dx, touch.sy+touch.dy, 16, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Zone banner
+  if(zoneBanner.timer > 0) {
+    const a = Math.min(1, zoneBanner.timer / 0.3, (zoneBanner.timer > 1.2 ? 1 : zoneBanner.timer/1.2));
+    ctx.globalAlpha = a;
+    ctx.font = '700 26px "Chakra Petch",sans-serif';
+    ctx.fillStyle = zoneBanner.color;
+    ctx.textAlign = 'center';
+    ctx.fillText(zoneBanner.text, W/2, H/2 - 50);
+    ctx.globalAlpha = 1;
+  }
+
+  // Minimap
+  drawMinimap(W, H);
+}
+
+function drawMinimap(W, H) {
+  const mw=90, mh=90, mx=W-mw-10, my=H-mh-46;
+  const s = mw/WW;
+  ctx.globalAlpha = 0.65;
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.roundRect(mx-4,my-4,mw+8,mh+8,5); ctx.fill();
+  for(const z of ZONES) {
+    ctx.fillStyle = zoneOpen(z) ? z.ground : '#050508';
+    ctx.fillRect(mx+z.x*s, my+z.y*s, z.w*s, z.h*s);
+    if(zoneOpen(z)) { ctx.strokeStyle = z.accent+'40'; ctx.lineWidth=1; ctx.strokeRect(mx+z.x*s,my+z.y*s,z.w*s,z.h*s); }
+  }
+  // Player dot
+  ctx.globalAlpha = 0.9 + Math.sin(time*4)*0.1;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(mx+S.px*s, my+S.py*s, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// ========= HUD =========
+function showZoneBanner(name, color) {
+  zoneBanner.text = name; zoneBanner.color = color; zoneBanner.timer = 2;
+}
+function updateHUD() {
+  const r = RANKS[S.rank];
+  document.getElementById('h-rank').textContent = r.icon + ' ' + r.name;
+  document.getElementById('h-clouds').textContent = fmt(S.clouds) + ' ☁️';
+  const nxt = RANKS[S.rank+1];
+  if(nxt) {
+    const prog = Math.min((S.total-r.at)/(nxt.at-r.at), 1);
+    document.getElementById('h-bar').style.width = (prog*100)+'%';
+    document.getElementById('h-next').textContent = 'Next: '+nxt.icon+' '+nxt.name+' ('+fmt(nxt.at)+')';
+  } else {
+    document.getElementById('h-bar').style.width = '100%';
+    document.getElementById('h-next').textContent = '✦ MAX RANK';
+  }
+}
+
+// ========= SAVE/LOAD =========
+function save() {
+  S.lastTick = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch(e){}
 }
 function load() {
   try {
-    const d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    // Try new format first
+    let d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if(d && typeof d.px==='number') {
+      Object.assign(S, d);
+      return true;
+    }
+    // Migrate from old clicker format (v1)
+    d = JSON.parse(localStorage.getItem('za_grind_v1'));
     if(d && typeof d.clouds==='number') {
-      state = { clouds:d.clouds, total:d.total||0, prods:migrateProds(d.prods||{}), tab:d.tab||'flower', lastTick:d.lastTick||Date.now() };
+      S.clouds = d.clouds || 0;
+      S.total = d.total || 0;
+      S.rank = 0;
+      for(let r=0;r<RANKS.length;r++) if(S.total>=RANKS[r].at) S.rank = r;
       return true;
     }
   } catch(e){}
   return false;
 }
 
-// --- Render ---
-function renderStatus() {
-  const i=rankIdx(), r=RANKS[i];
-  $('r-icon').textContent = r.icon;
-  $('r-name').textContent = r.name;
-  $('c-amount').textContent = fmt(state.clouds);
-  $('orb-emoji').textContent = r.icon;
-  $('s-click').textContent = '+'+fmt(clickPow());
-  $('s-sec').textContent = fmt(cps());
-  const prog = rankProgress();
-  $('p-fill').style.width = (prog*100)+'%';
-  const nxt = RANKS[i+1];
-  $('p-label').textContent = nxt ? `Next: ${nxt.icon} ${nxt.name} (${fmt(nxt.at)})` : '✦ MAX RANK';
-  if(i !== prevRankIdx) {
-    $('flavor').textContent = r.flavor;
-    prevRankIdx = i;
-  }
-}
-function renderTabs() {
-  const btns = document.querySelectorAll('.tab');
-  btns.forEach(b => {
-    const t = b.dataset.track;
-    const unlocked = trackUnlocked(t);
-    b.classList.toggle('active', t===state.tab);
-    b.classList.toggle('locked', !unlocked);
-    const lock = b.querySelector('.lock');
-    if(lock) lock.hidden = unlocked;
-  });
-}
-function renderShop() {
-  const app = $('app');
-  app.dataset.activeTrack = state.tab;
-
-  if(!trackUnlocked(state.tab)) {
-    const req = TRACK_UNLOCK[state.tab];
-    const rk = RANKS.find(r => r.at === req) || { icon:'?', name:'???' };
-    shopEl.innerHTML = `<div class="locked-msg">
-      <div class="lock-icon">🔒</div>
-      <div class="lock-text">Reach <strong>${rk.icon} ${rk.name}</strong> rank to unlock</div>
-      <div class="lock-req">${fmt(req)} total clouds needed</div>
-    </div>`;
-    return;
-  }
-  const items = PRODUCERS.filter(p => p.track===state.tab);
-  shopEl.innerHTML = items.map(p => {
-    const owned = state.prods[p.id]||0;
-    const cost = prodCost(p);
-    const afford = state.clouds >= cost;
-    return `<div class="producer ${afford?'can-afford':''}" data-id="${p.id}">
-      <span class="p-icon">${p.icon}</span>
-      <div class="p-info">
-        <div class="p-name">${p.name} ${owned?`<span class="p-count">×${owned}</span>`:''}</div>
-        <div class="p-desc">${p.desc}</div>
-        <div class="p-rate">+${fmt(p.rate)}/sec each</div>
-      </div>
-      <button class="buy-btn" data-id="${p.id}">${fmt(cost)} ☁️</button>
-    </div>`;
-  }).join('');
-}
-function updateAffordability() {
-  shopEl.querySelectorAll('.producer').forEach(el => {
-    const p = PRODUCERS.find(x=>x.id===el.dataset.id);
-    if(!p) return;
-    const cost = prodCost(p);
-    const afford = state.clouds >= cost;
-    el.classList.toggle('can-afford', afford);
-    const btn = el.querySelector('.buy-btn');
-    if(btn) btn.textContent = fmt(cost)+' ☁️';
-    const cnt = el.querySelector('.p-count');
-    const owned = state.prods[p.id]||0;
-    if(cnt) cnt.textContent = owned ? '×'+owned : '';
-  });
+// ========= INIT =========
+function resize() {
+  // Canvas sizing is handled in render() via devicePixelRatio
 }
 
-// --- Actions ---
-function handleClick(e) {
-  const pow = clickPow();
-  state.clouds += pow;
-  state.total += pow;
-  // Floater
-  const rect = orbEl.getBoundingClientRect();
-  const zoneRect = clickZone.getBoundingClientRect();
-  const cx = (e.clientX||rect.left+rect.width/2) - zoneRect.left;
-  const cy = (e.clientY||rect.top) - zoneRect.top - 10;
-  const span = document.createElement('span');
-  span.className = 'floater';
-  span.textContent = '+'+fmt(pow);
-  span.style.left = cx+'px';
-  span.style.top = cy+'px';
-  clickZone.appendChild(span);
-  span.addEventListener('animationend', ()=>span.remove());
-  renderStatus();
-}
-function handleBuy(id) {
-  const p = PRODUCERS.find(x=>x.id===id);
-  if(!p) return;
-  const cost = prodCost(p);
-  if(state.clouds < cost) return;
-  state.clouds -= cost;
-  state.prods[p.id] = (state.prods[p.id]||0) + 1;
-  save();
-  renderShop();
-  renderStatus();
+let lastFrame = 0;
+function loop(ts) {
+  const dt = Math.min((ts - lastFrame)/1000, 0.05);
+  lastFrame = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
 }
 
-// --- Events ---
-orbEl.addEventListener('click', handleClick);
-orbEl.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); handleClick(e); }});
-shopEl.addEventListener('click', e => {
-  const btn = e.target.closest('.buy-btn');
-  if(btn) handleBuy(btn.dataset.id);
-});
-$('tabs').addEventListener('click', e => {
-  const tab = e.target.closest('.tab');
-  if(!tab || tab.classList.contains('locked')) return;
-  state.tab = tab.dataset.track;
-  renderTabs();
-  renderShop();
-});
-$('wb-ok').addEventListener('click', () => { $('welcome').hidden = true; });
-
-// --- Game Loop ---
-let tickCount = 0;
-function tick() {
-  const now = Date.now();
-  const dt = Math.min(now - state.lastTick, 200) / 1000;
-  state.lastTick = now;
-  const earned = cps() * dt;
-  if(earned > 0) {
-    state.clouds += earned;
-    state.total += earned;
-  }
-  renderStatus();
-  tickCount++;
-  if(tickCount % 5 === 0) updateAffordability();
-  if(tickCount % 200 === 0) save();
-  // Check tab unlock changes
-  if(tickCount % 10 === 0) renderTabs();
-}
-
-// --- Init ---
 function init(hotData) {
-  if(hotData && hotData.clouds !== undefined) {
-    state = hotData;
+  if(hotData && typeof hotData.px === 'number') {
+    Object.assign(S, hotData);
   } else {
-    const hadSave = load();
-    if(hadSave) {
-      const elapsed = (Date.now() - (state.lastTick||Date.now())) / 1000;
-      const offlineEarnings = Math.floor(cps() * Math.min(elapsed, 8*3600) * 0.5);
-      if(offlineEarnings > 10) {
-        state.clouds += offlineEarnings;
-        state.total += offlineEarnings;
-        $('wb-amount').textContent = fmt(offlineEarnings);
-        $('welcome').hidden = false;
+    const had = load();
+    if(had) {
+      const elapsed = (Date.now() - (S.lastTick||Date.now())) / 1000;
+      // Small offline bonus based on rank
+      const offlineRate = 1 + S.rank * 2;
+      const offlineEarnings = Math.floor(offlineRate * Math.min(elapsed, 4*3600));
+      if(offlineEarnings > 5) {
+        S.clouds += offlineEarnings;
+        S.total += offlineEarnings;
       }
     }
   }
-  state.lastTick = Date.now();
-  prevRankIdx = rankIdx();
-  $('flavor').textContent = RANKS[prevRankIdx].flavor;
-  renderStatus();
-  renderTabs();
-  renderShop();
-  setInterval(tick, 50);
+  S.lastTick = Date.now();
+  cam.x = S.px - window.innerWidth/2;
+  cam.y = S.py - window.innerHeight/2;
+  curZone = getZone(S.px, S.py) || ZONES[0];
+  prevZoneId = curZone.id;
+  genWorld();
+  // Hint text
+  const hint = document.getElementById('h-hint');
+  hint.textContent = isMobile ? 'Touch & drag to move · Two fingers to dash' : 'WASD to move · Space to dash';
+  updateHUD();
+  requestAnimationFrame(loop);
 }
 
-// Hot reload support
 if(window.claude?.hot?.snapshot) {
-  setInterval(() => window.claude.hot.snapshot({...state}), 3000);
+  setInterval(() => window.claude.hot.snapshot({...S}), 3000);
 }
-const startFn = d => init(d);
-window.claude?.hot?.ready ? window.claude.hot.ready(startFn) : startFn(window.claude?.hot?.data ?? null);
+window.claude?.hot?.ready ? window.claude.hot.ready(d=>init(d)) : init(window.claude?.hot?.data ?? null);
 </script>
