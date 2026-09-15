@@ -254,7 +254,7 @@ function update(dt) {
   if(hintTimer > 0) hintTimer -= dt;
   if(hintTimer <= 0 && hintTimer > -1) { document.getElementById('h-hint').classList.add('hidden'); hintTimer = -1; }
   saveTimer -= dt;
-  if(saveTimer <= 0) { save(); saveTimer = 15; }
+  if(saveTimer <= 0) { save(); saveTimer = 5; }
 
   // Movement
   let mx = keys.right - keys.left;
@@ -644,6 +644,11 @@ function load() {
   } catch(e){}
   return false;
 }
+
+// ========= SAVE ON EXIT =========
+window.addEventListener('beforeunload', save);
+window.addEventListener('pagehide', save);
+document.addEventListener('visibilitychange', () => { if(document.hidden) save(); });
 
 // ========= INIT =========
 function resize() {
