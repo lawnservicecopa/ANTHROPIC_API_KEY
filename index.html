@@ -439,11 +439,24 @@ function save() {
   state.lastTick = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch(e){}
 }
+// Migrate old producer IDs to new ones so saved progress carries over
+const ID_MIGRATION = {
+  halfcart:'pacman', fullcart:'wholemlt', liveres:'cake',
+  diamond:'hexfuel', dispo:'aces', hyde:'puffco'
+};
+function migrateProds(prods) {
+  const out = {};
+  for(const k in prods) {
+    const nk = ID_MIGRATION[k] || k;
+    out[nk] = (out[nk]||0) + prods[k];
+  }
+  return out;
+}
 function load() {
   try {
     const d = JSON.parse(localStorage.getItem(SAVE_KEY));
     if(d && typeof d.clouds==='number') {
-      state = { clouds:d.clouds, total:d.total||0, prods:d.prods||{}, tab:d.tab||'flower', lastTick:d.lastTick||Date.now() };
+      state = { clouds:d.clouds, total:d.total||0, prods:migrateProds(d.prods||{}), tab:d.tab||'flower', lastTick:d.lastTick||Date.now() };
       return true;
     }
   } catch(e){}
