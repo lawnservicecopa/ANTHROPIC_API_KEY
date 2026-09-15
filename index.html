@@ -265,8 +265,8 @@ function update(dt) {
   }
 
   // Camera
-  cam.x += (S.px - cam.x - canvas.width/2) * Math.min(dt*5, 1);
-  cam.y += (S.py - cam.y - canvas.height/2) * Math.min(dt*5, 1);
+  cam.x += (S.px - cam.x - window.innerWidth/2) * Math.min(dt*5, 1);
+  cam.y += (S.py - cam.y - window.innerHeight/2) * Math.min(dt*5, 1);
 
   // Zone detection
   const z = getZone(S.px, S.py);
@@ -493,7 +493,7 @@ function render() {
     ctx.fillText(RANKS[S.rank].icon, px, py);
   }
   // Direction indicator
-  if(len > 0 || touch.active) {
+  {
     let dx = keys.right-keys.left, dy = keys.down-keys.up;
     if(touch.active && Math.hypot(touch.dx,touch.dy)>8) { dx=touch.dx; dy=touch.dy; }
     const dl = Math.hypot(dx,dy);
