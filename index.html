@@ -21,6 +21,15 @@
   }
   .hud-bar { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#22c55e,#fbbf24); transition: width 0.3s; width: 0%; }
   .hud-next { font-size: 11px; color: #64748b; margin-top: 3px; text-align: right; font-variant-numeric: tabular-nums; }
+  .hud-next-preview {
+    display: flex; align-items: center; justify-content: flex-end; gap: 6px;
+    margin-top: 4px;
+  }
+  .hud-next-icon { font-size: 22px; filter: grayscale(0.4) brightness(0.8); animation: next-glow 2s ease-in-out infinite alternate; }
+  @keyframes next-glow { from{filter:grayscale(0.4) brightness(0.8)} to{filter:grayscale(0.1) brightness(1.1)} }
+  .hud-next-info { text-align: right; }
+  .hud-next-name { font-size: 12px; color: #cbd5e1; font-weight: 600; }
+  .hud-next-need { font-size: 10px; color: #475569; font-variant-numeric: tabular-nums; }
   .hud-zone {
     position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
     font-family: 'Chakra Petch',sans-serif; font-weight: 700; font-size: 28px;
@@ -66,6 +75,13 @@
   </div>
   <div class="hud-bar-wrap"><div class="hud-bar" id="h-bar"></div></div>
   <div class="hud-next" id="h-next">Next: 🌿 Nug (100)</div>
+  <div class="hud-next-preview" id="h-preview">
+    <div class="hud-next-info">
+      <div class="hud-next-name" id="h-prev-name">Nug</div>
+      <div class="hud-next-need" id="h-prev-need">100 ☁️ to go</div>
+    </div>
+    <div class="hud-next-icon" id="h-prev-icon">🌿</div>
+  </div>
 </div>
 <div class="hud-zone" id="h-zone"></div>
 <div class="hud-hint" id="h-hint"></div>
@@ -152,19 +168,33 @@ function genWorld() {
     const pad = 60;
     const rx = () => rnd(z.x+pad, z.x+z.w-pad);
     const ry = () => rnd(z.y+pad, z.y+z.h-pad);
-    // Clouds
-    for(let i=0;i<40;i++) items.push({ x:rx(), y:ry(), emoji:'☁️', val:1, zone:z.id, type:'cloud', gone:0 });
-    // Smoke
-    for(let i=0;i<15;i++) items.push({ x:rx(), y:ry(), emoji:'💨', val:5, zone:z.id, type:'smoke', gone:0 });
-    // Stars
-    for(let i=0;i<5;i++) items.push({ x:rx(), y:ry(), emoji:'⭐', val:25, zone:z.id, type:'star', gone:0 });
+    // Common pickups (za-themed)
+    const commonPool = z.id==='dispo' ? ['🛒','💊','🧪'] : z.id==='lounge' ? ['🫧','💨','☁️'] : z.id==='stash' ? ['💰','🪙','💵'] : ['🌿','🍃','🌱'];
+    for(let i=0;i<40;i++) items.push({ x:rx(), y:ry(), emoji:commonPool[i%commonPool.length], val:1, zone:z.id, type:'cloud', gone:0 });
+    // Mid pickups
+    const midPool = z.id==='dispo' ? [{e:'🔋',n:'Cart'},{e:'💉',n:'Dab'}] : z.id==='lounge' ? [{e:'🫧',n:'Pod'},{e:'💨',n:'Cloud'}] : z.id==='stash' ? [{e:'💎',n:'Rock'},{e:'🔮',n:'Crystal'}] : [{e:'🚬',n:'J'},{e:'🍪',n:'Edible'}];
+    for(let i=0;i<15;i++) { const m=midPool[i%midPool.length]; items.push({ x:rx(), y:ry(), emoji:m.e, val:5, zone:z.id, type:'smoke', name:m.n, gone:0 }); }
+    // Rare pickups
+    const rarePool = z.id==='dispo' ? [{e:'🔥',n:'Live Resin',v:25}] : z.id==='lounge' ? [{e:'⚡',n:'Buzz Hit',v:25}] : z.id==='stash' ? [{e:'🏆',n:'Gold Bar',v:50}] : [{e:'🍁',n:'Exotic Bud',v:25}];
+    for(let i=0;i<5;i++) { const r=rarePool[i%rarePool.length]; items.push({ x:rx(), y:ry(), emoji:r.e, val:r.v, zone:z.id, type:'star', name:r.n, gone:0 }); }
     // Premium zone items
     const premiums = ZONE_ITEMS[z.id] || [];
     for(const p of premiums) {
       for(let i=0;i<2;i++) items.push({ x:rx(), y:ry(), emoji:p.icon, val:p.val, zone:z.id, type:'premium', name:p.name, gone:0 });
     }
-    // Smoke spots (passive earn zones)
-    for(let i=0;i<3;i++) spots.push({ x:rx(), y:ry(), r:55, zone:z.id, accent:z.accent });
+    // Smoke spots (passive earn zones) — named variety
+    const spotTypes = [
+      { name:'Whataburger', emoji:'🍔' },
+      { name:'The Park', emoji:'🌳' },
+      { name:'Smoke Spot', emoji:'💨' },
+      { name:'The Trap', emoji:'🏚️' },
+      { name:'The Gas Station', emoji:'⛽' },
+      { name:'The Alley', emoji:'🌙' },
+    ];
+    for(let i=0;i<3;i++) {
+      const st = spotTypes[(ZONES.indexOf(z)*3+i) % spotTypes.length];
+      spots.push({ x:rx(), y:ry(), r:55, zone:z.id, accent:z.accent, name:st.name, emoji:st.emoji });
+    }
     // Hazards
     for(let i=0;i<4;i++) {
       const hx=rx(), hy=ry();
@@ -321,8 +351,8 @@ function update(dt) {
       const loss = Math.max(5, Math.floor(S.clouds * 0.08));
       S.clouds = Math.max(0, S.clouds - loss);
       invTimer = 1.5;
-      floaters.push({ x:S.px, y:S.py-20, text:'-'+fmt(loss), color:'#f43f5e', t:0 });
-      for(let i=0;i<8;i++) particles.push({ x:S.px, y:S.py, vx:rnd(-80,80), vy:rnd(-80,80), life:0.4, color:'#f43f5e' });
+      floaters.push({ x:S.px, y:S.py-20, text:'🚨 -'+fmt(loss), color:'#f43f5e', t:0 });
+      for(let i=0;i<8;i++) particles.push({ x:S.px, y:S.py, vx:rnd(-80,80), vy:rnd(-80,80), life:0.4, color:'#3b82f6' });
     }
   }
 
@@ -426,13 +456,15 @@ function render() {
     ctx.strokeStyle = sp.accent + (inSpot?'50':'18');
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(sx,sy,sp.r,0,Math.PI*2); ctx.stroke();
-    // Label
-    if(inSpot) {
-      ctx.font = '600 10px "Chakra Petch",sans-serif';
-      ctx.fillStyle = sp.accent + '90';
-      ctx.textAlign = 'center';
-      ctx.fillText('SMOKE SPOT', sx, sy+sp.r+14);
-    }
+    // Spot icon (always visible)
+    ctx.font = (inSpot?'22':'18')+'px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(sp.emoji||'💨', sx, sy);
+    // Label (always visible)
+    ctx.font = '600 '+(inSpot?'11':'9')+'px "Chakra Petch",sans-serif';
+    ctx.fillStyle = sp.accent + (inSpot?'cc':'70');
+    ctx.textAlign = 'center';
+    ctx.fillText(sp.name||'SMOKE SPOT', sx, sy+sp.r+14);
   }
 
   // Collectibles
@@ -443,7 +475,7 @@ function render() {
     const sx=it.x-cam.x, sy=it.y-cam.y;
     if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
     const bob = Math.sin(time*2.5+it.x*0.01+it.y*0.01)*3;
-    const sz = it.type==='premium' ? 22 : it.type==='star' ? 18 : 16;
+    const sz = it.type==='premium' ? 22 : it.type==='star' ? 20 : it.type==='smoke' ? 17 : 15;
     ctx.font = sz+'px serif';
     ctx.fillText(it.emoji, sx, sy+bob);
   }
@@ -456,15 +488,17 @@ function render() {
     const pulse = 1 + Math.sin(time*4)*0.15;
     ctx.beginPath();
     ctx.arc(sx, sy, h.r*pulse, 0, Math.PI*2);
-    ctx.fillStyle = 'rgba(239,68,68,0.2)';
+    ctx.fillStyle = 'rgba(59,130,246,0.2)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(239,68,68,0.5)';
+    ctx.strokeStyle = 'rgba(59,130,246,0.5)';
     ctx.lineWidth = 2;
     ctx.stroke();
-    ctx.font = '14px serif';
+    // Red/blue flash for cop car vibe
+    if(Math.floor(time*3)%2===0) { ctx.strokeStyle='rgba(239,68,68,0.4)'; ctx.stroke(); }
+    ctx.font = '18px serif';
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('🚫', sx, sy);
+    ctx.fillText('👮', sx, sy);
   }
 
   // Particles
@@ -568,13 +602,20 @@ function updateHUD() {
   document.getElementById('h-rank').textContent = r.icon + ' ' + r.name;
   document.getElementById('h-clouds').textContent = fmt(S.clouds) + ' ☁️';
   const nxt = RANKS[S.rank+1];
+  const preview = document.getElementById('h-preview');
   if(nxt) {
     const prog = Math.min((S.total-r.at)/(nxt.at-r.at), 1);
     document.getElementById('h-bar').style.width = (prog*100)+'%';
     document.getElementById('h-next').textContent = 'Next: '+nxt.icon+' '+nxt.name+' ('+fmt(nxt.at)+')';
+    preview.hidden = false;
+    document.getElementById('h-prev-icon').textContent = nxt.icon;
+    document.getElementById('h-prev-name').textContent = nxt.name;
+    const need = Math.max(0, nxt.at - S.total);
+    document.getElementById('h-prev-need').textContent = fmt(need)+' ☁️ to go';
   } else {
     document.getElementById('h-bar').style.width = '100%';
     document.getElementById('h-next').textContent = '✦ MAX RANK';
+    preview.hidden = true;
   }
 }
 
