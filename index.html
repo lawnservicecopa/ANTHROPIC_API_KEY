@@ -47,6 +47,21 @@
   }
   .hud-hint.hidden { opacity: 0; }
 
+  /* Power-up bar */
+  .hud-buffs {
+    position: fixed; bottom: calc(env(safe-area-inset-bottom,0px) + 36px); left: 14px;
+    display: flex; gap: 6px; pointer-events: none; z-index: 10;
+    font-family: 'Chakra Petch',sans-serif;
+  }
+  .buff-pill {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(0,0,0,0.6); border-radius: 12px;
+    padding: 3px 10px 3px 6px; font-size: 12px; font-weight: 600;
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+  .buff-pill .bp-icon { font-size: 16px; }
+  .buff-pill .bp-time { color: #fbbf24; font-variant-numeric: tabular-nums; }
+
   /* Evolution overlay */
   .evo-overlay {
     position: fixed; inset: 0; z-index: 50;
@@ -85,6 +100,7 @@
 </div>
 <div class="hud-zone" id="h-zone"></div>
 <div class="hud-hint" id="h-hint"></div>
+<div class="hud-buffs" id="h-buffs"></div>
 
 <div class="evo-overlay" id="evo">
   <div class="evo-card">
@@ -138,13 +154,22 @@ let S = {
 let cam = { x: 0, y: 0 };
 let curZone = ZONES[0], prevZoneId = 'block';
 let items = [], hazards = [], spots = [], floaters = [], particles = [];
+let powerups = [], ucops = []; // power-ups and undercover cops
+let buffs = { shield:0, speed:0, magnet:0, double:0 }; // active buff timers
 let keys = { up:0, down:0, left:0, right:0, dash:0 };
 let touch = { active:false, sx:0, sy:0, dx:0, dy:0 };
 let dashCooldown = 0, dashTimer = 0, invTimer = 0;
 let evoTimer = 0, hintTimer = 8;
 let zoneBanner = { text:'', color:'', timer:0 };
-let time = 0, saveTimer = 0;
+let time = 0, saveTimer = 0, puSpawnTimer = 8, ucopSpawnTimer = 12;
 let isMobile = 'ontouchstart' in window;
+
+const POWERUP_TYPES = [
+  { id:'shield', icon:'🛡️', name:'Shield',     color:'#3b82f6', dur:6,  desc:'Cop-proof!' },
+  { id:'speed',  icon:'⚡',  name:'Speed Boost', color:'#f59e0b', dur:5,  desc:'Zoom!' },
+  { id:'magnet', icon:'🧲',  name:'Magnet',      color:'#a855f7', dur:7,  desc:'Vacuum!' },
+  { id:'double', icon:'💥',  name:'2x Clouds',   color:'#ef4444', dur:8,  desc:'Double up!' },
+];
 
 // ========= HELPERS =========
 function fmt(n) {
@@ -158,8 +183,8 @@ function dist(a,b) { return Math.hypot(a.x-b.x, a.y-b.y); }
 function rnd(lo,hi) { return lo + Math.random()*(hi-lo); }
 function getZone(x,y) { return ZONES.find(z => x>=z.x && x<z.x+z.w && y>=z.y && y<z.y+z.h) || null; }
 function zoneOpen(z) { return S.rank >= z.reqRank; }
-function playerSpeed() { return 155 + S.rank * 18 + (dashTimer > 0 ? 200 : 0); }
-function collectRadius() { return 22 + S.rank * 2; }
+function playerSpeed() { return (155 + S.rank * 18 + (dashTimer > 0 ? 200 : 0)) * (buffs.speed > 0 ? 1.6 : 1); }
+function collectRadius() { return (22 + S.rank * 2) * (buffs.magnet > 0 ? 2.5 : 1); }
 
 // ========= WORLD GEN =========
 function genWorld() {
@@ -312,9 +337,10 @@ function update(dt) {
     if(!zoneOpen(ZONES.find(z=>z.id===it.zone))) continue;
     if(dist({x:S.px,y:S.py}, it) < cr) {
       it.gone = Date.now();
-      S.clouds += it.val;
-      S.total += it.val;
-      const label = it.name ? it.name+' +'+fmt(it.val) : '+'+fmt(it.val);
+      const earned = it.val * (buffs.double > 0 ? 2 : 1);
+      S.clouds += earned;
+      S.total += earned;
+      const label = (buffs.double>0?'💥 ':'') + (it.name ? it.name+' +'+fmt(earned) : '+'+fmt(earned));
       floaters.push({ x:it.x, y:it.y, text:label, color: it.type==='premium'?curZone.accent:'#fbbf24', t:0 });
       // Burst particles
       for(let i=0;i<5;i++) particles.push({ x:it.x, y:it.y, vx:rnd(-60,60), vy:rnd(-60,60), life:0.35, color:'#fbbf24' });
@@ -347,12 +373,87 @@ function update(dt) {
     if(!zoneOpen(ZONES.find(z=>z.id===h.zone))) continue;
     if(h.dir==='h') h.x = h.ox + Math.sin(time*h.spd/50+h.phase)*h.range;
     else h.y = h.oy + Math.sin(time*h.spd/50+h.phase)*h.range;
-    if(invTimer <= 0 && dist({x:S.px,y:S.py},h) < h.r + 14) {
+    if(invTimer <= 0 && buffs.shield <= 0 && dist({x:S.px,y:S.py},h) < h.r + 14) {
       const loss = Math.max(5, Math.floor(S.clouds * 0.08));
       S.clouds = Math.max(0, S.clouds - loss);
       invTimer = 1.5;
       floaters.push({ x:S.px, y:S.py-20, text:'🚨 -'+fmt(loss), color:'#f43f5e', t:0 });
       for(let i=0;i<8;i++) particles.push({ x:S.px, y:S.py, vx:rnd(-80,80), vy:rnd(-80,80), life:0.4, color:'#3b82f6' });
+    }
+  }
+
+  // ---- Power-up spawning ----
+  puSpawnTimer -= dt;
+  if(puSpawnTimer <= 0) {
+    puSpawnTimer = rnd(10,20);
+    const z = curZone;
+    if(z && powerups.length < 6) {
+      const pt = POWERUP_TYPES[Math.floor(Math.random()*POWERUP_TYPES.length)];
+      const ang = Math.random()*Math.PI*2;
+      const d2 = rnd(120,350);
+      const px2 = Math.max(z.x+40,Math.min(z.x+z.w-40, S.px + Math.cos(ang)*d2));
+      const py2 = Math.max(z.y+40,Math.min(z.y+z.h-40, S.py + Math.sin(ang)*d2));
+      powerups.push({ x:px2, y:py2, type:pt, zone:z.id, life:15, spawn:time });
+    }
+  }
+  // Collect power-ups
+  for(let i=powerups.length-1;i>=0;i--) {
+    const pu = powerups[i];
+    pu.life -= dt;
+    if(pu.life <= 0) { powerups.splice(i,1); continue; }
+    if(dist({x:S.px,y:S.py},pu) < cr+8) {
+      buffs[pu.type.id] = pu.type.dur;
+      floaters.push({ x:pu.x, y:pu.y-10, text:pu.type.icon+' '+pu.type.desc, color:pu.type.color, t:0 });
+      for(let j=0;j<10;j++) particles.push({ x:pu.x, y:pu.y, vx:rnd(-80,80), vy:rnd(-80,80), life:0.5, color:pu.type.color });
+      powerups.splice(i,1);
+    }
+  }
+  // Tick buff timers
+  for(const b in buffs) if(buffs[b]>0) buffs[b] = Math.max(0, buffs[b]-dt);
+
+  // ---- Undercover cops ----
+  ucopSpawnTimer -= dt;
+  if(ucopSpawnTimer <= 0) {
+    ucopSpawnTimer = rnd(6,14);
+    const z = curZone;
+    if(z && zoneOpen(z) && ucops.length < 5) {
+      // Spawn just off screen near the player
+      const ang = Math.random()*Math.PI*2;
+      const sd = rnd(250,420);
+      const ux = Math.max(z.x+30,Math.min(z.x+z.w-30, S.px + Math.cos(ang)*sd));
+      const uy = Math.max(z.y+30,Math.min(z.y+z.h-30, S.py + Math.sin(ang)*sd));
+      ucops.push({ x:ux, y:uy, r:16, zone:z.id, reveal:0, life:8, warned:false });
+    }
+  }
+  // Update undercover cops
+  for(let i=ucops.length-1;i>=0;i--) {
+    const uc = ucops[i];
+    uc.life -= dt;
+    if(uc.life <= 0) { ucops.splice(i,1); continue; }
+    const dd = dist({x:S.px,y:S.py},uc);
+    // Reveal when player gets close
+    if(dd < 130) uc.reveal = Math.min(1, uc.reveal + dt*3);
+    else uc.reveal = Math.max(0, uc.reveal - dt*0.5);
+    // Chase the player once revealed
+    if(uc.reveal > 0.5) {
+      const chaseSpd = (80 + S.rank*8) * dt;
+      const dx2 = S.px - uc.x, dy2 = S.py - uc.y;
+      const dl2 = Math.hypot(dx2,dy2);
+      if(dl2 > 5) { uc.x += (dx2/dl2)*chaseSpd; uc.y += (dy2/dl2)*chaseSpd; }
+    }
+    // Warning flash when first appearing
+    if(uc.reveal > 0.3 && !uc.warned) {
+      uc.warned = true;
+      floaters.push({ x:uc.x, y:uc.y-20, text:'⚠️ UNDERCOVER!', color:'#fbbf24', t:0 });
+    }
+    // Hit check
+    if(invTimer <= 0 && buffs.shield <= 0 && dd < uc.r + 14 && uc.reveal > 0.5) {
+      const loss = Math.max(8, Math.floor(S.clouds * 0.12));
+      S.clouds = Math.max(0, S.clouds - loss);
+      invTimer = 2;
+      floaters.push({ x:S.px, y:S.py-20, text:'🚨 BUSTED -'+fmt(loss), color:'#f43f5e', t:0 });
+      for(let j=0;j<12;j++) particles.push({ x:S.px, y:S.py, vx:rnd(-100,100), vy:rnd(-100,100), life:0.5, color:'#ef4444' });
+      ucops.splice(i,1);
     }
   }
 
@@ -369,6 +470,7 @@ function update(dt) {
   }
 
   updateHUD();
+  updateBuffHUD();
 }
 
 function checkRank() {
@@ -501,6 +603,52 @@ function render() {
     ctx.fillText('👮', sx, sy);
   }
 
+  // Power-ups
+  for(const pu of powerups) {
+    const sx=pu.x-cam.x, sy=pu.y-cam.y;
+    if(sx<-30||sx>W+30||sy<-30||sy>H+30) continue;
+    const bob = Math.sin(time*4+pu.spawn)*6;
+    const glow = 0.5+Math.sin(time*3)*0.3;
+    // Glow ring
+    ctx.beginPath(); ctx.arc(sx,sy+bob,18,0,Math.PI*2);
+    ctx.fillStyle = pu.type.color + '25';
+    ctx.fill();
+    ctx.strokeStyle = pu.type.color + (pu.life<3?Math.floor(glow*99).toString(16).padStart(2,'0'):'80');
+    ctx.lineWidth = 2; ctx.stroke();
+    // Icon
+    ctx.font = '20px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(pu.type.icon, sx, sy+bob);
+    // Blink when about to expire
+    if(pu.life < 3 && Math.floor(time*6)%2===0) {
+      ctx.font = '600 8px "Chakra Petch",sans-serif';
+      ctx.fillStyle = pu.type.color;
+      ctx.fillText(Math.ceil(pu.life)+'s', sx, sy+bob+22);
+    }
+  }
+
+  // Undercover cops
+  for(const uc of ucops) {
+    if(uc.reveal < 0.05) continue;
+    const sx=uc.x-cam.x, sy=uc.y-cam.y;
+    if(sx<-40||sx>W+40||sy<-40||sy>H+40) continue;
+    ctx.globalAlpha = uc.reveal;
+    // Warning ring — grows as they reveal
+    const rr = uc.r*(1+2*(1-uc.reveal));
+    ctx.beginPath(); ctx.arc(sx,sy,rr,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(239,68,68,'+(0.15*uc.reveal)+')';
+    ctx.fill();
+    if(uc.reveal > 0.5) {
+      ctx.strokeStyle = Math.floor(time*5)%2===0?'rgba(59,130,246,0.6)':'rgba(239,68,68,0.6)';
+      ctx.lineWidth = 2; ctx.stroke();
+    }
+    // The cop — looks like a normal person until revealed
+    ctx.font = (14+uc.reveal*6)+'px serif';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(uc.reveal > 0.5 ? '🕵️' : '🧑', sx, sy);
+    ctx.globalAlpha = 1;
+  }
+
   // Particles
   for(const p of particles) {
     const sx=p.x-cam.x, sy=p.y-cam.y;
@@ -518,6 +666,14 @@ function render() {
   gr.addColorStop(1, 'transparent');
   ctx.fillStyle = gr;
   ctx.beginPath(); ctx.arc(px,py,35+S.rank*3,0,Math.PI*2); ctx.fill();
+  // Shield aura
+  if(buffs.shield > 0) {
+    ctx.beginPath(); ctx.arc(px,py,28+S.rank*3,0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(59,130,246,'+(0.4+Math.sin(time*6)*0.2)+')';
+    ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = 'rgba(59,130,246,0.08)';
+    ctx.fill();
+  }
   // Blink when invincible
   if(invTimer > 0 && Math.floor(time*10)%2===0) { /* skip drawing */ }
   else {
@@ -525,6 +681,12 @@ function render() {
     ctx.font = psz+'px serif';
     ctx.textAlign='center'; ctx.textBaseline='middle';
     ctx.fillText(RANKS[S.rank].icon, px, py);
+  }
+  // Magnet ring
+  if(buffs.magnet > 0) {
+    ctx.beginPath(); ctx.arc(px,py,collectRadius(),0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(168,85,247,'+(0.15+Math.sin(time*3)*0.1)+')';
+    ctx.lineWidth = 1; ctx.setLineDash([4,4]); ctx.stroke(); ctx.setLineDash([]);
   }
   // Direction indicator
   {
@@ -619,15 +781,34 @@ function updateHUD() {
   }
 }
 
+function updateBuffHUD() {
+  const el = document.getElementById('h-buffs');
+  let html = '';
+  for(const pt of POWERUP_TYPES) {
+    if(buffs[pt.id] > 0) {
+      html += '<div class="buff-pill" style="border-color:'+pt.color+'40"><span class="bp-icon">'+pt.icon+'</span><span class="bp-time" style="color:'+pt.color+'">'+Math.ceil(buffs[pt.id])+'s</span></div>';
+    }
+  }
+  el.innerHTML = html;
+}
+
 // ========= SAVE/LOAD =========
 function save() {
   S.lastTick = Date.now();
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch(e){}
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(S));
+    // Backup save with a second key in case primary gets wiped
+    localStorage.setItem(SAVE_KEY+'_bak', JSON.stringify(S));
+  } catch(e){}
 }
 function load() {
   try {
-    // Try new format first
+    // Try primary save
     let d = JSON.parse(localStorage.getItem(SAVE_KEY));
+    // If primary is missing/corrupt, try backup
+    if(!d || typeof d.px !== 'number') {
+      d = JSON.parse(localStorage.getItem(SAVE_KEY+'_bak'));
+    }
     if(d && typeof d.px==='number') {
       Object.assign(S, d);
       return true;
@@ -665,22 +846,27 @@ function loop(ts) {
 }
 
 function init(hotData) {
-  if(hotData && typeof hotData.px === 'number') {
+  // Always try localStorage first
+  const hadLocal = load();
+  const localTotal = S.total;
+  // If hot data exists AND has more progress, use it instead
+  if(hotData && typeof hotData.px === 'number' && (hotData.total||0) > localTotal) {
     Object.assign(S, hotData);
-  } else {
-    const had = load();
-    if(had) {
-      const elapsed = (Date.now() - (S.lastTick||Date.now())) / 1000;
-      // Small offline bonus based on rank
-      const offlineRate = 1 + S.rank * 2;
-      const offlineEarnings = Math.floor(offlineRate * Math.min(elapsed, 4*3600));
-      if(offlineEarnings > 5) {
-        S.clouds += offlineEarnings;
-        S.total += offlineEarnings;
-      }
+  } else if(hadLocal) {
+    // localStorage loaded above — add offline bonus
+    const elapsed = (Date.now() - (S.lastTick||Date.now())) / 1000;
+    const offlineRate = 1 + S.rank * 2;
+    const offlineEarnings = Math.floor(offlineRate * Math.min(elapsed, 4*3600));
+    if(offlineEarnings > 5) {
+      S.clouds += offlineEarnings;
+      S.total += offlineEarnings;
     }
+  } else if(hotData && typeof hotData.px === 'number') {
+    // No local save but hot data exists
+    Object.assign(S, hotData);
   }
   S.lastTick = Date.now();
+  save(); // Persist immediately on load
   cam.x = S.px - window.innerWidth/2;
   cam.y = S.py - window.innerHeight/2;
   curZone = getZone(S.px, S.py) || ZONES[0];
