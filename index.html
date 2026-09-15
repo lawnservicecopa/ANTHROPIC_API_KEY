@@ -792,36 +792,31 @@ function updateBuffHUD() {
   el.innerHTML = html;
 }
 
-// ========= SAVE/LOAD =========
+// ========= SAVE/LOAD (db-backed) =========
+let dbRef = null; // will be set if db capability is available
+let dbSaving = false;
+let dbDirty = false;
+
 function save() {
   S.lastTick = Date.now();
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(S));
-    // Backup save with a second key in case primary gets wiped
-    localStorage.setItem(SAVE_KEY+'_bak', JSON.stringify(S));
-  } catch(e){}
+  // Always try localStorage as a fast local cache
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch(e){}
+  // Save to artifact db (persistent, survives everything)
+  if(dbRef && !dbSaving) {
+    dbSaving = true;
+    dbDirty = false;
+    dbRef.set({ clouds:S.clouds, total:S.total, rank:S.rank, px:S.px, py:S.py, lastTick:S.lastTick })
+      .then(() => { dbSaving = false; if(dbDirty) save(); })
+      .catch(() => { dbSaving = false; });
+  } else if(dbRef) {
+    dbDirty = true; // will save after current write finishes
+  }
 }
-function load() {
+
+function loadLocal() {
   try {
-    // Try primary save
     let d = JSON.parse(localStorage.getItem(SAVE_KEY));
-    // If primary is missing/corrupt, try backup
-    if(!d || typeof d.px !== 'number') {
-      d = JSON.parse(localStorage.getItem(SAVE_KEY+'_bak'));
-    }
-    if(d && typeof d.px==='number') {
-      Object.assign(S, d);
-      return true;
-    }
-    // Migrate from old clicker format (v1)
-    d = JSON.parse(localStorage.getItem('za_grind_v1'));
-    if(d && typeof d.clouds==='number') {
-      S.clouds = d.clouds || 0;
-      S.total = d.total || 0;
-      S.rank = 0;
-      for(let r=0;r<RANKS.length;r++) if(S.total>=RANKS[r].at) S.rank = r;
-      return true;
-    }
+    if(d && typeof d.px==='number') { Object.assign(S, d); return true; }
   } catch(e){}
   return false;
 }
@@ -832,10 +827,6 @@ window.addEventListener('pagehide', save);
 document.addEventListener('visibilitychange', () => { if(document.hidden) save(); });
 
 // ========= INIT =========
-function resize() {
-  // Canvas sizing is handled in render() via devicePixelRatio
-}
-
 let lastFrame = 0;
 function loop(ts) {
   const dt = Math.min((ts - lastFrame)/1000, 0.05);
@@ -845,38 +836,59 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 
-function init(hotData) {
-  // Always try localStorage first
-  const hadLocal = load();
-  const localTotal = S.total;
-  // If hot data exists AND has more progress, use it instead
-  if(hotData && typeof hotData.px === 'number' && (hotData.total||0) > localTotal) {
-    Object.assign(S, hotData);
-  } else if(hadLocal) {
-    // localStorage loaded above — add offline bonus
-    const elapsed = (Date.now() - (S.lastTick||Date.now())) / 1000;
-    const offlineRate = 1 + S.rank * 2;
-    const offlineEarnings = Math.floor(offlineRate * Math.min(elapsed, 4*3600));
-    if(offlineEarnings > 5) {
-      S.clouds += offlineEarnings;
-      S.total += offlineEarnings;
-    }
-  } else if(hotData && typeof hotData.px === 'number') {
-    // No local save but hot data exists
-    Object.assign(S, hotData);
-  }
-  S.lastTick = Date.now();
-  save(); // Persist immediately on load
+function startGame() {
   cam.x = S.px - window.innerWidth/2;
   cam.y = S.py - window.innerHeight/2;
   curZone = getZone(S.px, S.py) || ZONES[0];
   prevZoneId = curZone.id;
   genWorld();
-  // Hint text
   const hint = document.getElementById('h-hint');
   hint.textContent = isMobile ? 'Touch & drag to move · Two fingers to dash' : 'WASD to move · Space to dash';
   updateHUD();
+  save(); // persist immediately
   requestAnimationFrame(loop);
+}
+
+function applyBestSave(hotData, dbData) {
+  // Gather all save sources and pick whichever has the most progress
+  const local = {};
+  const hadLocal = loadLocal();
+  if(hadLocal) { local.clouds = S.clouds; local.total = S.total; local.rank = S.rank; local.px = S.px; local.py = S.py; local.lastTick = S.lastTick; }
+  // Reset S for comparison
+  S.clouds = 0; S.total = 0; S.rank = 0; S.px = 600; S.py = 600; S.lastTick = Date.now();
+
+  let best = null, bestTotal = -1;
+  if(hadLocal && (local.total||0) > bestTotal) { best = local; bestTotal = local.total||0; }
+  if(dbData && typeof dbData.px === 'number' && (dbData.total||0) > bestTotal) { best = dbData; bestTotal = dbData.total||0; }
+  if(hotData && typeof hotData.px === 'number' && (hotData.total||0) > bestTotal) { best = hotData; bestTotal = hotData.total||0; }
+
+  if(best) {
+    S.clouds = best.clouds||0; S.total = best.total||0;
+    S.rank = best.rank||0; S.px = best.px||600; S.py = best.py||600;
+    S.lastTick = best.lastTick||Date.now();
+    // Offline bonus
+    const elapsed = (Date.now() - S.lastTick) / 1000;
+    const offlineRate = 1 + S.rank * 2;
+    const offlineEarnings = Math.floor(offlineRate * Math.min(elapsed, 4*3600));
+    if(offlineEarnings > 5) { S.clouds += offlineEarnings; S.total += offlineEarnings; }
+  }
+  S.lastTick = Date.now();
+}
+
+async function init(hotData) {
+  // Try to get the db capability for persistent saves
+  let dbData = null;
+  try {
+    const db = await claude.use('db');
+    if(db) {
+      dbRef = db.doc('saves/game');
+      const snap = await dbRef.get();
+      if(snap.exists) dbData = snap.data();
+    }
+  } catch(e) { /* db not available, localStorage only */ }
+
+  applyBestSave(hotData, dbData);
+  startGame();
 }
 
 if(window.claude?.hot?.snapshot) {
