@@ -1,0 +1,32 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  luau:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check formatting (StyLua)
+        uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: 0.20.0
+          args: --check src
+
+      - name: Install selene
+        run: |
+          curl -sSL -o selene.zip https://github.com/Kampfkarren/selene/releases/download/0.27.1/selene-0.27.1-linux.zip
+          unzip -q selene.zip -d "$HOME/.local/bin"
+          chmod +x "$HOME/.local/bin/selene"
+          rm selene.zip
+
+      - name: Lint (selene)
+        run: |
+          selene generate-roblox-std
+          selene src

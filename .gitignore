@@ -1,0 +1,8 @@
+# Studio files (the game itself lives in src/, these are just local saves)
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+sourcemap.json
+.DS_Store
+roblox.yml
