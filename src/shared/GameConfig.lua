@@ -56,65 +56,65 @@ GameConfig.Stages = {
 		},
 	},
 	{
-		name = "First Steps",
+		name = "FOMO",
 		difficulty = 1,
 		reward = {
 			title = "Where it started",
-			note = "[Write about the day you met here]",
-			image = "",
+			note = "We met at a club in downtown Houston called FOMO, where we were with a bunch of our friends and just started talking.",
+			image = "", -- photo idea: IMG_1582 (selfie under the vines)
 		},
 	},
 	{
-		name = "Cotton Candy",
+		name = "Galveston",
 		difficulty = 2,
 		reward = {
 			title = "Our first date",
-			note = "[Write about your first date here]",
-			image = "",
+			note = "Our first date was with my family at Galveston beach, where we played in the water, went to eat and saw her people.",
+			image = "", -- photo idea: IMG_1125 (beach)
 		},
 	},
 	{
-		name = "Drift",
+		name = "On Wallahi",
 		difficulty = 2,
 		reward = {
 			title = "That one inside joke",
-			note = "[Put an inside joke here]",
+			note = "On wallahi",
 			image = "",
 		},
 	},
 	{
-		name = "Spin Cycle",
+		name = "Cozy",
 		difficulty = 3,
 		reward = {
 			title = "Favorite photo",
-			note = "[Caption for a favorite photo]",
-			image = "",
+			note = "Laying in John’s bed",
+			image = "", -- photo idea: the purple-lights photo
 		},
 	},
 	{
-		name = "Vanishing Clouds",
+		name = "Her Smile",
 		difficulty = 3,
 		reward = {
 			title = "Things I love about you",
-			note = "[List a few things here]",
-			image = "",
+			note = "Her energy, her love, her smile, her laugh, her drive towards God",
+			image = "", -- photo idea: IMG_8332 (holding hands downtown)
 		},
 	},
 	{
-		name = "Starlight",
+		name = "The Gym",
 		difficulty = 4,
 		reward = {
 			title = "Our place",
-			note = "[Write about a place that's yours]",
-			image = "",
+			note = "The gym",
+			image = "", -- photo idea: IMG_0799 (gym mirror)
 		},
 	},
 	{
-		name = "Almost There",
+		name = "Never Back Down",
 		difficulty = 5,
 		reward = {
 			title = "Keep going…",
-			note = "[A little encouragement before the end]",
+			note = "Never back down never what?",
 			image = "",
 		},
 	},
@@ -124,7 +124,7 @@ GameConfig.Stages = {
 		finale = true,
 		reward = {
 			title = "You made it 💖",
-			note = "[Write your final letter here. This one types out slowly, so make it count.]",
+			note = "To the stinkiest loving girl I know, thank you for playing my game. I’ll always love you to every angle and back. You are what keeps me going and what motivates me to be a better version of myself. Keep going and driving for what you want I promise the world is going to be ours.",
 			image = "",
 		},
 	},
